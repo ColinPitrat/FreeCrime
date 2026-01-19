@@ -7,7 +7,7 @@ There structure is:
 
 | name | size | notes |
 |------|------|-------|
-| `num_pictures` | byte | number of pictures in the file |
+| num_pictures | byte | number of pictures in the file |
 | height | byte | height in pixels of the pictures |
 | pictures | dynamic (see below) | |
 | palette | 768 bytes | 256 triplets (red, green, blue) |

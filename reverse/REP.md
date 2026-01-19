@@ -41,7 +41,7 @@ Not forgetting 40 and 0E which are:
 Bit Usage Summary
 
 | Byte   | Used Bits              | Unused Bits | Key Observations                                                                                                    |
-|========|========================|=============|=====================================================================================================================|
+|--------|------------------------|-------------|---------------------------------------------------------------------------------------------------------------------|
 | Byte 5 | 0, 1, 2, 3, 6, 7       | 4, 5        | Bits 0 and 1 are extremely common (~50% each), likely representing a primary state like "On Foot" vs. "In Vehicle". |
 | Byte 6 | 1, 2, 3, 4, 5, 6, 7    | 0           | Most bits are used. Bit 0 is never set. High activity on bits 1 and 7.                                              |
 | Byte 7 | 0, 4, 5, 6, 7          | 1, 2, 3     | Bit 0 is used in exactly the same number of records as Byte 6's Bit 7 (1484 records), suggesting they are linked.   |

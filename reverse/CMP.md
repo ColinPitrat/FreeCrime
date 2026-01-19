@@ -8,8 +8,10 @@ https://www.moddb.com/downloads/cityscape-data-structure
 
 ## File format
 
+The overall file format is the following:
+
 | name | size | notes |
------------------------
+|------|------|-------|
 | version code | UInt32 | 331 - 0x0000014b |
 | style number | UInt8 | style number xxx means that the style file to be used for this map is stylexxx.gry
 | sample number | UInt8 | sample file number xxx means that the sample file to be used for this map is samxxx.sam
