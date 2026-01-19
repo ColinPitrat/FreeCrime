@@ -1,3 +1,5 @@
+# GTA 1 REP file format
+
 The REP files are very likely replay files that allow the game to display the
 demo when it remains idle for some time (TODO: check after how long it triggers).
 
@@ -38,16 +40,15 @@ Not forgetting 40 and 0E which are:
 
 Bit Usage Summary
 
-┌────────┬────────────────────────┬─────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Byte   │ Used Bits              │ Unused Bits │ Key Observations                                                                                                    │
-├────────┼────────────────────────┼─────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Byte 5 │ 0, 1, 2, 3, 6, 7       │ 4, 5        │ Bits 0 and 1 are extremely common (~50% each), likely representing a primary state like "On Foot" vs. "In Vehicle". │
-│ Byte 6 │ 1, 2, 3, 4, 5, 6, 7    │ 0           │ Most bits are used. Bit 0 is never set. High activity on bits 1 and 7.                                              │
-│ Byte 7 │ 0, 4, 5, 6, 7          │ 1, 2, 3     │ Bit 0 is used in exactly the same number of records as Byte 6's Bit 7 (1484 records), suggesting they are linked.   │
-│ Byte 8 │ 0, 1, 2, 3, 4, 5, 6, 7 │ (None)      │ Every bit is used at least once, though they are overall very rare (~0.3% - 0.5%).                                  │
-└────────┴────────────────────────┴─────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+| Byte   | Used Bits              | Unused Bits | Key Observations                                                                                                    |
+|========|========================|=============|=====================================================================================================================|
+| Byte 5 | 0, 1, 2, 3, 6, 7       | 4, 5        | Bits 0 and 1 are extremely common (~50% each), likely representing a primary state like "On Foot" vs. "In Vehicle". |
+| Byte 6 | 1, 2, 3, 4, 5, 6, 7    | 0           | Most bits are used. Bit 0 is never set. High activity on bits 1 and 7.                                              |
+| Byte 7 | 0, 4, 5, 6, 7          | 1, 2, 3     | Bit 0 is used in exactly the same number of records as Byte 6's Bit 7 (1484 records), suggesting they are linked.   |
+| Byte 8 | 0, 1, 2, 3, 4, 5, 6, 7 | (None)      | Every bit is used at least once, though they are overall very rare (~0.3% - 0.5%).                                  |
 
 Potential Significance
+
 - Correlations: The perfect match between Byte 6/Bit 7 and Byte 7/Bit 0 (both 23.64%) suggests a 16-bit field spanning these two bytes, or a specific event type that triggers both.
 - Byte 5/6 Activity: These appear to be the primary input/state bytes. The "toggle" behavior I noticed earlier (values returning to 0) is most prevalent in Byte 6, reinforcing the idea that it tracks key
  presses/releases.

@@ -1,8 +1,12 @@
-The CMP file format is a low-flexibility file format with a fixed structure used for storing map data.
+# GTA 1 CMP file format
 
-Most of the information in this page comes from https://www.moddb.com/downloads/cityscape-data-structure
+The CMP file format is a low-flexibility file format with a fixed structure used
+for storing map data.
 
- == File format
+Most of the information in this page comes from
+https://www.moddb.com/downloads/cityscape-data-structure
+
+## File format
 
 | name | size | notes |
 -----------------------
@@ -23,7 +27,7 @@ Most of the information in this page comes from https://www.moddb.com/downloads/
 | location_data | 3x6x6 | |
 | nav_data | nav_data_size | |
 
- == Internal representation
+## Internal representation
 
 Although this is not how the data is stored into the file, it helps understand how the original GTA game represents the data in memory to understand the file format.
 
@@ -65,9 +69,9 @@ block_info city_scape[6][256][256];
 Using `[z][y][x]` order, position `[0][0][0]` is the highest left top corner of the world.
 `[5][n][n]` is the lowest level. Note that at this level only lids are visible.
 
- == Map data
+## Map data
 
- === `base`, `column` and `block`
+### `base`, `column` and `block`
 
 The map data is converted to a compressed format to be stored into the file, to reduce memory usage.
 
@@ -94,7 +98,7 @@ Here,  height is the minimum array index for the column (i.e. 6-N where N is the
 
 `block`: a variable length array of `block_info` structures, containing every distinct combination of faces & types required for the level.
 
- === `object_pos`
+### `object_pos`
 Objects positions are stored in a list of:
 ```
 typedef struct {
@@ -113,7 +117,7 @@ Here, `(x,y,z)` is the position of the object in the world, stated in world co-o
 `rotation`, `pitch` and `roll` are the initial rotation, pitch and roll angles of the object. They are of type `Ang16`, which is a two-byte positive integer between zero and `MAX_ANGLE`, where `MAX_ANGLE` is the equivalent of 360°.
 There is one entry in this list for each distinct object which is to be present in the world when the game starts.
 
- === `route`
+### `route`
 Routefinder information.
 
 An individual route is a list of between 1 and 50 vertices, where each vertex has the following format :
@@ -138,7 +142,7 @@ As well as the police routes, the route area can also contain roadblock routes. 
 
 // TODO: understand how roadbloacks work and their relation with traffic lights.
 
- === `location_data`
+### `location_data`
 Information about particular locations: police stations, hospitals and fire stations.
 
 This is in the following format :
@@ -158,7 +162,7 @@ This stores (x,y,z) location information for the accident services bases. Unused
 
 There are some unused locations defined in the data files from the games, but it's unclear why. Removing them doesn't seem to have any effect (but maybe it impacts some mission?).
 
- === `nav_data`
+### `nav_data`
 
 Navigational data. This consists of the name of each area of the map, where it is, and how to say it.
 Each named area must be a rectangle. Overlapping of areas is allowed - the smaller area always has priority. Every block of the map must be within at least one named area. A sequence of structures of the following format is stored in the `nav_data` area of the map file : 

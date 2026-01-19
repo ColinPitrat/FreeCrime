@@ -1,11 +1,13 @@
+# GTA 1 MISSION.INI file format
+
 Project Cerbera has some nice (though incomplete) explanations on the way the MISSION.INI file works:
  - https://projectcerbera.com/gta/1/tutorials/smallest
  - https://projectcerbera.com/gta/1/tutorials/insane-stunts
  - https://projectcerbera.com/gta/tutorials/
 
- == Common rules
+## Common rules
 
- === Coordinates system
+### Coordinates system
 
 Coordinates in the world are represented as a triplet (x, y, z).
 
@@ -19,7 +21,7 @@ x increases going east and y increases going south.
 Orientation/rotation for object can often be specified with a number between 0 and 1023 (going from 0 to 360°, so 1 unit = 0.351°).
 For block related things, it can be specified with a number between 0 and 3 but the meaning varies (see PARK and BARRIER for two examples with different usages).
 
- === Comments
+### Comments
 
 It is possible to add comments in the file using curly braces. The comments can be multi-lines.
 
@@ -29,7 +31,7 @@ Example:
 294 1 (105,119,4) PLAYER 293 256
 ```
 
- === Jumping to commands
+### Jumping to commands
 
 Many commands are checking something and allow to jump to two different other commands depending on the result.
 
@@ -44,7 +46,7 @@ The second and third parameters can be:
  - 0, in which case the command jumped to is the next instruction
  - a positive number, which is the command that will be jumped to
 
- === Monetary reward
+### Monetary reward
 
 The last parameter of a command is often (always?) a monetary reward.
 
@@ -54,9 +56,9 @@ For example:
 ```
 Will reward the player with 5000$ if they survive.
 
- == Structure
+## Structure
 
- === Objects
+### Objects
 Example:
 ```
 0 1 (108,108,4) TELEPHONE 0 768
@@ -76,7 +78,7 @@ For example:
 
 Both mission counters should be permanent and not be cleaned by a RESET command.
 
- === Commands
+### Commands
 Example:
 ```
 9 SURVIVE 0 0 0 5 0 
@@ -85,11 +87,11 @@ Example:
 12 STARTUP 303 30000 30000 0 0 
 ```
 
- === Startup commands
+### Startup commands
 
- == All objects
+## All objects
 
- === `BARRIER`
+### `BARRIER`
 Places a barrier.
 
 Example:
@@ -104,10 +106,10 @@ The third parameter is always 0 in the game's files. It determines the sprite us
 
 Some nice documentation at https://projectcerbera.com/gta/1/tutorials/park
 
- === `BASIC_BARRIER`
+### `BASIC_BARRIER`
 Places a barrier. No noticeable difference with `BARRIER` but it's used in 4 places in the original game's MISSION.INI.
 
- === `BLOCK_INFO`
+### `BLOCK_INFO`
 Creates an ID to reference a block in the map.
 
 This reference can be used later with `CHANGE_BLOCK` or `CHANGE_TYPE` to update the map content.
@@ -125,7 +127,7 @@ The second parameter is:
  - not used with `CHANGE_BLOCK`?
  - the new face value with `CHANGE_TYPE`
 
- === `BOMBSHOP`
+### `BOMBSHOP`
 Place a bombshop at the provided position.
 
 Note that the bombshop is invisible. It will automatically place a bomb in the
@@ -137,7 +139,7 @@ Example:
 ```
 Creates a bombshop with the object ID 176 at coordinates (1, 156, 3).
 
- === `BOMBSHOP_COST`
+### `BOMBSHOP_COST`
 Set the cost of placing a bomb in a vehicle in all bombshops.
 
 Example:
@@ -146,13 +148,13 @@ Example:
 ```
 Sets the cost of placing a bomb in a car to 1000 (instead of the default 5000).
 
- === `CARBOMB_TRIG`
+### `CARBOMB_TRIG`
 From the name, this should trigger the bomb of a car but so far, couldn't make it work.
 TODO: Reseach more.
 
- === `CARDESTROY_TRIG`
- === `CARSTUCK_TRIG`
- === `CARTRIGGER`
+### `CARDESTROY_TRIG`
+### `CARSTUCK_TRIG`
+### `CARTRIGGER`
 A trigger on entering a particular car.
 
 Example:
@@ -165,17 +167,17 @@ The first parameter is the command to jump to when the player enters the car.
 The second parameter is the ID of the car object subject to the trigger.
 The position of the trigger doesn't really matter. In game's files, it is set either to the same position as the car or to (0,0,0).
 
- === `CARWAIT_TRIG`
- === `CHOPPER_ENDPOINT`
- === `CORRECT_CAR_TRIG`
- === `COUNTER`
- === `CRANE`
- === `DOOR`
+### `CARWAIT_TRIG`
+### `CHOPPER_ENDPOINT`
+### `CORRECT_CAR_TRIG`
+### `COUNTER`
+### `CRANE`
+### `DOOR`
 TODO
 Some nice documentation at https://projectcerbera.com/gta/1/tutorials/park
- === `DUM_MISSION_TRIG`
- === `DUMMY`
- === `FUTURE`
+### `DUM_MISSION_TRIG`
+### `DUMMY`
+### `FUTURE`
 Define an emplacement where a future object can be created with MAKEOBJ.
 
 Example:
@@ -187,22 +189,22 @@ Defines a drop-off point (47) as the emplacement 240 at coordinates (6720,2624,2
 The first parameter is the type of object. See `object.txt` at https://projectcerbera.com/gta/1/tutorials/reference for a list of objects. (TODO: copy the file here with proper attribution for posterity?)
 The second parameter should logically be an orientation (rotation) of the object, between 0 and 1023, but it actually doesn't seem to have any effect.
 
- === `FUTURECAR`
- === `FUTUREPED`
- === `GTA_DEMAND`
- === `GUN_SCREEN_TRIG`
- === `GUN_TRIG`
- === `MISSION_COUNTER`
- === `MISSION_TOTAL`
- === `MODEL_BARRIER`
- === `MOVING_TRIG`
- === `MPHONES`
- === `PARKED`
- === `PARKED_PIXELS`
- === `PED`
- === `PEDCAR_TRIG`
- === `PHONE_TOGG`
- === `PLAYER`
+### `FUTURECAR`
+### `FUTUREPED`
+### `GTA_DEMAND`
+### `GUN_SCREEN_TRIG`
+### `GUN_TRIG`
+### `MISSION_COUNTER`
+### `MISSION_TOTAL`
+### `MODEL_BARRIER`
+### `MOVING_TRIG`
+### `MPHONES`
+### `PARKED`
+### `PARKED_PIXELS`
+### `PED`
+### `PEDCAR_TRIG`
+### `PHONE_TOGG`
+### `PLAYER`
 Position the player at its start position. For a multiplayer mission, there can be multiple player positioned.
 
 Example:
@@ -214,14 +216,14 @@ Here, object 294 is the player. It is positioned at (105,119,4).
 The first parameter, 293, seems to refer to the `PARKED` object before, unclear what's its purpose.
 The second parameter is the orientation of the player. It goes from 0 to 1023. 0 means pointing south, 256 is east, etc....
 
- === `POWERUP`
- === `SECRET_MISSION_COUNTER`
- === `SPECIFIC_BARR`
- === `SPECIFIC_DOOR`
- === `SPRAY`
- === `TARGET`
- === `TARGET_SCORE`
- === `TELEPHONE`
+### `POWERUP`
+### `SECRET_MISSION_COUNTER`
+### `SPECIFIC_BARR`
+### `SPECIFIC_DOOR`
+### `SPRAY`
+### `TARGET`
+### `TARGET_SCORE`
+### `TELEPHONE`
 Creates a public phone.
 
 Example:
@@ -231,7 +233,7 @@ Example:
 Which creates a telephone with ID `0` at position (108, 108, 4) pointing toward south (768).
 The second value is always 1 and the fifth value is always 0. Changing these values doesn't seem to have any effect.
 
- === `TRIGGER`
+### `TRIGGER`
 An invisible objects that triggers an action when the player reaches its position.
 
 Example:
@@ -242,9 +244,9 @@ Creates a trigger with id `136` at position `(60,246,4)` which triggers command 
 
 The role of the last number is unclear, it can range from 0 to 8.
 
- == All keywords
+## All keywords
 
- === `ADD_A_LIFE`
+### `ADD_A_LIFE`
 Give an additional life to the player.
 
 Example:
@@ -254,7 +256,7 @@ Example:
 
 In the game's files, the parameters are always `0 0 -1 -1 0`.
 
- === `ANSWER`
+### `ANSWER`
 Check whether the player answers a phone in time.
 
 Example:
@@ -273,7 +275,7 @@ The fifth parameter doesn't seem to have any effect. It seems (from the values i
 
 TODO: Clarify the timing (test more extreme values).
 
- === `ARMEDMESS`
+### `ARMEDMESS`
 Display a message that a bomb was armed.
 
 Example:
@@ -285,7 +287,7 @@ This is always used with 0 for the 5 parameters in the game's files.
 
 The fifth parameter can provide a monetary reward.
 
- === `ARROW`
+### `ARROW`
 Makes the arrow point to an object.
 
 Example:
@@ -311,18 +313,18 @@ When executing 438, the arrow will point towards object `191` and next instructi
 The instruction 430 loops to itself unless the player enters the car `294`. Once the player does so, they are directed to stealing the car `189`.
 This seems to be a way to keep the process running? Not 100% sure...
 
- === `ARROWCAR`
- === `ARROW_OFF`
+### `ARROWCAR`
+### `ARROW_OFF`
 Hide the arrow
 
- === `ARROWPED`
- === `BANK_ALARM_OFF`
- === `BANK_ALARM_ON`
- === `BANK_ROBBERY`
- === `BRIEF`
- === `CANCEL_BRIEFING`
- === `CAR_ON`
- === `CHANGE_BLOCK`
+### `ARROWPED`
+### `BANK_ALARM_OFF`
+### `BANK_ALARM_ON`
+### `BANK_ROBBERY`
+### `BRIEF`
+### `CANCEL_BRIEFING`
+### `CAR_ON`
+### `CHANGE_BLOCK`
 Modify a block in the map.
 
 The block modification must have been prepared with `BLOCK_INFO`.
@@ -339,8 +341,8 @@ The third parameter doesn't have any actual effect? (always 0 in the game's file
 The fourth parameter doesn't have any effect? (always 0 in the game's files);
 The fifth parameter is a monetary reward? (TODO: test - always 0 in the game's files);
 
- === `CHANGE_PED_TYPE`
- === `CHANGE_TYPE`
+### `CHANGE_PED_TYPE`
+### `CHANGE_TYPE`
 Modify the face of a block in the map.
 
 The block modification must have been prepared with `BLOCK_INFO`.
@@ -357,27 +359,27 @@ The third parameter doesn't have any actual effect? (sometimes -1 in the game's 
 The fourth parameter doesn't have any effect? (always 0 in the game's files);
 The fifth parameter is a monetary reward? (TODO: test - always 0 in the game's files);
 
- === `CHECK_CAR`
- === `CLOSE_DOOR`
- === `COMPARE`
- === `CRANE`
- === `DEAD_ARRESTED`
- === `DECCOUNT`
- === `DESTROY`
- === `DISABLE`
- === `DISARMMESS`
- === `DO_GTA`
- === `DO_MODEL`
- === `DONOWT`
- === `DOOR_OFF`
- === `DOOR_ON`
- === `DO_REPO`
- === `DROP_ON`
- === `DROP_WANTED_LEVEL`
- === `DUMMY_DRIVE_ON`
- === `DUMMYON`
- === `ENABLE`
- === `END`
+### `CHECK_CAR`
+### `CLOSE_DOOR`
+### `COMPARE`
+### `CRANE`
+### `DEAD_ARRESTED`
+### `DECCOUNT`
+### `DESTROY`
+### `DISABLE`
+### `DISARMMESS`
+### `DO_GTA`
+### `DO_MODEL`
+### `DONOWT`
+### `DOOR_OFF`
+### `DOOR_ON`
+### `DO_REPO`
+### `DROP_ON`
+### `DROP_WANTED_LEVEL`
+### `DUMMY_DRIVE_ON`
+### `DUMMYON`
+### `ENABLE`
+### `END`
 End the game.
 
 Example:
@@ -400,14 +402,14 @@ First parameters tells what type of end this is:
 
 Other parameters don't seem to have any effect.
 
- === `EXPL_NO_FIRE`
- === `EXPLODE`
- === `EXPLODE_CAR`
- === `EXPL_LAST`
+### `EXPL_NO_FIRE`
+### `EXPLODE`
+### `EXPLODE_CAR`
+### `EXPL_LAST`
 This keyword is only used in UK mission file (GTA London mission packs).
- === `EXPL_PED`
- === `FREEUP_CAR`
- === `FREEZE_ENTER`
+### `EXPL_PED`
+### `FREEUP_CAR`
+### `FREEZE_ENTER`
 Prevent the player to exit the vehicle they are in.
 
 Example:
@@ -416,8 +418,8 @@ Example:
 ```
 All parameters are always 0 in the game's files.
 
- === `FREEZE_TIMED`
- === `FRENZY_BRIEF`
+### `FREEZE_TIMED`
+### `FRENZY_BRIEF`
 Display a briefing message for a frenzy.
 
 Example:
@@ -436,7 +438,7 @@ unclear.
 The fourth parameter is either 0, 16 or 24 in the game's files but its effect is
 unclear.
 
- === `FRENZY_CHECK`
+### `FRENZY_CHECK`
 Verifies that a frenzy challenge is achieved in a given amount of time.
 
 Example:
@@ -456,11 +458,11 @@ to be any parameter for it, so it may be in the game engine? But there are
 various timings available from the messages: 20 seconds, 80 seconds, 100 seconds,
 2 minutes, ...
 
- === `FRENZY_SET`
- === `GENERAL_ONSCREEN`
- === `GET_CAR_INFO`
- === `GET_DRIVER_INFO`
- === `GOTO`
+### `FRENZY_SET`
+### `GENERAL_ONSCREEN`
+### `GET_CAR_INFO`
+### `GET_DRIVER_INFO`
+### `GOTO`
 Test if the player got to a point.
 
 Example:
@@ -475,13 +477,13 @@ The third parameter is the command to jump to if not reached in time.
 The fourth parameter is the time to reach the target.
 The fifth parameter may be a monetary reward for reaching it (TODO: check that).
 
- === `GOTO_DROPOFF`
- === `HELL_ON`
- === `HUNTOFF`
- === `HUNTON`
- === `INCCOUNT`
- === `INC_HEADS`
- === `IS_GOAL_DEAD`
+### `GOTO_DROPOFF`
+### `HELL_ON`
+### `HUNTOFF`
+### `HUNTON`
+### `INCCOUNT`
+### `INC_HEADS`
+### `IS_GOAL_DEAD`
 Test if an object is dead.
 
 Example:
@@ -496,21 +498,21 @@ The third parameter is the command to jump to if the object is NOT dead.
 The fourth parameter may be a duration for which to check? (TODO: verify this)
 The fifth parameter may be a monetary reward for the target being dead? (TODO: check that).
 
- === `IS_PED_ARRESTED`
- === `IS_PED_IN_CAR`
- === `IS_PED_STUNNED`
- === `IS_PLAYER_ON_TRAIN`
- === `IS_POWERUP_DONE`
- === `KEEP_THIS_PROC`
- === `KF_BRIEF_GENERAL`
- === `KF_BRIEF_TIMED`
- === `KF_CANCEL_BRIEFING`
- === `KF_CANCEL_GENERAL`
- === `KF_PROCESS`
- === `KICKSTART`
- === `KILL_CAR`
- === `KILL_DROP`
- === `KILL_OBJ`
+### `IS_PED_ARRESTED`
+### `IS_PED_IN_CAR`
+### `IS_PED_STUNNED`
+### `IS_PLAYER_ON_TRAIN`
+### `IS_POWERUP_DONE`
+### `KEEP_THIS_PROC`
+### `KF_BRIEF_GENERAL`
+### `KF_BRIEF_TIMED`
+### `KF_CANCEL_BRIEFING`
+### `KF_CANCEL_GENERAL`
+### `KF_PROCESS`
+### `KICKSTART`
+### `KILL_CAR`
+### `KILL_DROP`
+### `KILL_OBJ`
 Destroy an object previously created with MAKEOBJ.
 
 Example:
@@ -524,13 +526,13 @@ The third parameter doesn't seem to have any effect (although it is sometimes se
 The fourth parameter doesn't seem to have any effect and is always 0 in the game's files.
 The fifth parameter is a monetary reward.
 
- === `KILL_PED`
- === `KILL_PROCESS`
- === `KILL_SIDE_PROC`
- === `KILL_SPEC_PROC`
- === `LOCATE`
- === `LOCK_DOOR`
- === `MAKEOBJ`
+### `KILL_PED`
+### `KILL_PROCESS`
+### `KILL_SIDE_PROC`
+### `KILL_SPEC_PROC`
+### `LOCATE`
+### `LOCK_DOOR`
+### `MAKEOBJ`
 Create an object previously specified by FUTURE.
 
 Example:
@@ -542,7 +544,7 @@ Creates the object 53.
 The first parameter is the object ID to create.
 The second parameter is a command to jump to (if 0, continues with the next command).
 
- === `MESSAGE_BRIEF`
+### `MESSAGE_BRIEF`
 
 Displays a message. For example:
 ```
@@ -588,14 +590,14 @@ It seems that repeating it as the third parameter means the execution should con
 
 The meaning of -1 is unclear.
 
- === `MISSION_END`
- === `MOBILE_BRIEF`
- === `MODEL_HUNT`
- === `MPHONE`
- === `NEXT_KICK`
- === `OBTAIN`
- === `OPEN_DOOR`
- === `PARK`
+### `MISSION_END`
+### `MOBILE_BRIEF`
+### `MODEL_HUNT`
+### `MPHONE`
+### `NEXT_KICK`
+### `OBTAIN`
+### `OPEN_DOOR`
+### `PARK`
 Checks if a given car is parked in a garage.
 
 Example:
@@ -609,39 +611,39 @@ Detects when the player is in the DOOR 178. If so, automatically respawn the pla
 
 Some nice documentation at https://projectcerbera.com/gta/1/tutorials/park
 
- === `PARKED_ON`
- === `PARKED_PIXELS_ON`
- === `P_BRIEF`
- === `P_BRIEF_TIMED`
- === `PED_BACK`
- === `PED_ON`
- === `PED_OUT_OF_CAR`
- === `PED_POLICE`
- === `PED_SENDTO`
- === `PED_WEAPON`
- === `PIXEL_CAR_ON`
- === `PLAIN_EXPL_BUILDING`
- === `PLAYER_ARE_BOTH_ONSCREEN`
- === `POWERUP_OFF`
- === `POWERUP_ON`
- === `RED_ARROW`
- === `RED_ARROW_OFF`
- === `RED_ARROWCAR`
+### `PARKED_ON`
+### `PARKED_PIXELS_ON`
+### `P_BRIEF`
+### `P_BRIEF_TIMED`
+### `PED_BACK`
+### `PED_ON`
+### `PED_OUT_OF_CAR`
+### `PED_POLICE`
+### `PED_SENDTO`
+### `PED_WEAPON`
+### `PIXEL_CAR_ON`
+### `PLAIN_EXPL_BUILDING`
+### `PLAYER_ARE_BOTH_ONSCREEN`
+### `POWERUP_OFF`
+### `POWERUP_ON`
+### `RED_ARROW`
+### `RED_ARROW_OFF`
+### `RED_ARROWCAR`
 This keyword is only used in UK mission file (GTA London mission packs).
- === `REMAP_CAR`
+### `REMAP_CAR`
 This keyword is only used in UK mission file (GTA London mission packs).
- === `REMAP_PED`
- === `RESET`
+### `REMAP_PED`
+### `RESET`
 Cleanup objects after a mission ends.
 
 The ending of every mission should have a RESET command which automatically erases every mission object from the game environment unless it has 1 placed after the object number and before the coordinates.
 
- === `RESET_KF`
- === `RESET_WITH_BRIEFS`
- === `RETURN_CONTROL`
- === `SCORE_CHECK`
- === `SENDTO`
- === `SETBOMB`
+### `RESET_KF`
+### `RESET_WITH_BRIEFS`
+### `RETURN_CONTROL`
+### `SCORE_CHECK`
+### `SENDTO`
+### `SETBOMB`
 Configures a bomb in a vehicle.
 
 Example:
@@ -662,16 +664,16 @@ The fifth parameter is a monetary reward immediately granted to the player.
 
 TODO: understand the roles of the second, third and fifth parameters
 
- === `SET_KILLTRIG`
- === `SET_NO_COLLIDE`
- === `SET_PED_SPEED`
- === `SETUP_REPO`
- === `SPEECH_BRIEF`
- === `START_MODEL`
- === `STARTUP`
- === `STEAL`
- === `STOP_FRENZY`
- === `SURVIVE`
+### `SET_KILLTRIG`
+### `SET_NO_COLLIDE`
+### `SET_PED_SPEED`
+### `SETUP_REPO`
+### `SPEECH_BRIEF`
+### `START_MODEL`
+### `STARTUP`
+### `STEAL`
+### `STOP_FRENZY`
+### `SURVIVE`
 Wait to see if the player survive for a given amount of time.
 
 Example:
@@ -687,8 +689,8 @@ The third parameter can hold a command to jump to if the player doesn't survive.
 The fourth parameter holds the duration for which the player must survive (in frames, i.e. in 25th of a second).
 The fifth parameter holds a monetary reward for surviving.
 
- === `THROW`
- === `UNFREEZE_ENTER`
+### `THROW`
+### `UNFREEZE_ENTER`
 Allow the player to exit the vehicle they are in.
 
 Example:
@@ -699,7 +701,7 @@ Example:
 All parameters are always 0 in the game's files except 2nd and 3rd which can
 probably hold a command to jump to.
 
- === `UNLOCK_DOOR`
- === `WAIT_FOR_PED`
- === `WAIT_FOR_PLAYERS`
- === `WRECK_A_TRAIN`
+### `UNLOCK_DOOR`
+### `WAIT_FOR_PED`
+### `WAIT_FOR_PLAYERS`
+### `WRECK_A_TRAIN`

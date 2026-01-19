@@ -1,8 +1,10 @@
+# GTA 1 GRY file format
+
 The GRY file format stores graphics and objects data.
 
 Most of the information in this page comes from https://www.moddb.com/downloads/cityscape-data-structure
 
- == File format
+## File format
 
 | name | size | notes |
 |------|------|-------|
@@ -32,7 +34,7 @@ Most of the information in this page comes from https://www.moddb.com/downloads/
 | sprite_graphics | sprite_graphics_size | |
 | sprite_numbers | sprite_numbers_size | |
 
- == Block Data
+## Block Data
 
 The block face data is stored in 3 areas :
 
@@ -65,7 +67,7 @@ So the simplest approach is to extract all blocks and then split the result.
 Because the areas in the file containing the sides and the lids (resp. the lids
 and the aux) can overlap.
 
- === Synchronous Animation
+### Synchronous Animation
 
 The animation data is stored in 2 areas:
 
@@ -96,7 +98,7 @@ where we have:
 
 When displaying the animation, the original side/lid_block face is shown first, then it is replaced by each of the specified aux_block faces in turn, until the animation repeats by going back to the first frame.
 
- === Object Info
+### Object Info
 
 Object type description information is stored in a list which is appended to the block data on disk. For each object type, the following variable-length information record is stored :
 
@@ -129,7 +131,7 @@ Here, `width`, `height` and `depth` store the dimensions of the object with resp
 `num_into` is how many other objects this object breaks into when damaged.
 `into` is a list of `num_into` object type codes, defining the objects which this object can break into.
 
- ==== Animated Objects
+#### Animated Objects
 
 Animated objects are a special case. They cannot be involved in collisions and are there for graphical effect only. The same data structure is used as for objects, with the following differences :
 `height` stores the number of game cycles per frame
@@ -138,7 +140,7 @@ Animated objects are a special case. They cannot be involved in collisions and a
 The animation works by displaying each of the desired frames in turn for the desired number of game cycles, then returning to the first frame after the last one.
 If the life descriptor is set to 0 then the animation repeats indefinitely. If it is set to a non-zero number then the animation is played for that number of times and then the object destroys itself.
 
- === Car Info
+### Car Info
 
 Car type information is stored in a list which is also stored in the style file. The following type definitions are used :
 
@@ -226,13 +228,13 @@ Remaps 1-6 are used for sprayshops. Remaps 7-12 are used for randomly generated 
 `num_doors` is the number of opening doors which this car has. `door` is then a list of `num_doors` door info structures.
 For each door, `(rpx,rpy)` is the relative position where a pedestrian must stand to enter / exit the car via that door. `delta` is the delta number of that door. `object` is the object type number of the door - this refers to an object info structure (see  ). 
 
- ==== floats
+#### floats
 
 Note that all of the `float` quantities in the car data are stored in the file as 32-bit fixed point values ( with 16 bits after the point ). This is to aid Playstation compatibility. They are converted to float when they are loaded into the game.
 
- == Sprites
+## Sprites
 
- === Sprite Info
+### Sprite Info
 The sprite info part of the style file contains `num_sprites` variable-sized `sprite_info` structures, which are described by the following type definitions :
 
 ```
@@ -256,7 +258,7 @@ There is one `sprite_info_struct` for each different sprite graphic. Each contai
 
 In the file, the `ptr` items in `sprite_info_struct` and `delta_info_struct` are 32 bits offsets to the actual position in memory of the graphic for the sprite or delta starting from the beginning of the `sprite_graphics` section.
 
- ==== Deltas
+#### Deltas
 Deltas have the following format : 
 
 `offset` ( 2 bytes )
@@ -272,7 +274,7 @@ So for example, the decimal values 10 80 3 24 24 24 253 0 3 25 25 25 corresponds
  - first setting pixels (10, 80), (11, 80), (12, 80) to 24
  - second setting pixels (10, 81), (11, 81), (12, 81) to 25
 
- === 24-bit Remaps
+### 24-bit Remaps
 
 The format used for storing 24-bit remaps is :
 
@@ -284,18 +286,18 @@ typedef struct {
 
 This represents a hue/lightness/saturation remap as used in Photoshop. However, if the hue value is greater than 1000 then the remap is loaded from a file instead of calculating it. The filename is remapXXX.tga, where X is hue-1000.
 
- === Sprite Graphics
+### Sprite Graphics
 
 The sprite graphics part of the file contains the actual graphics for the sprites. It stores each sprite followed by all of the deltas for that sprite ( if any ). The order is the same as the order of `sprite_info_struct` records.
 
- ==== Sprites
+#### Sprites
 
 Sprites are stored in a byte-per-pixel format, in row-major order, i.e. row 0 then row 1 then row 2, etc. They are not compressed at all.
 
- ==== Size Reduction
+#### Size Reduction
 Sprites are stored in the smallest possible rectangle - the program which generates sprite data must enforce this. If any deltas are larger than the original sprite then the sprite must be stored in a rectangle big enough to hold these deltas and no bigger.
 
- === Sprite Numbers
+### Sprite Numbers
 Sprite numbers data is also stored in the style file. This is a list of numbers which is used by the game to reference particular sprite types. The format is :
 
 ```
@@ -326,12 +328,12 @@ typedef struct {
 
 Each of these numbers stores the number of sprites of that particular type. The number can be zero if there are no sprites of that type in the style.
 
- == `remap_tables` ( 8-bit only )
+## `remap_tables` ( 8-bit only )
 `remap_tables` is the area of the style file which stores the colour remap information for the style. It stores 256 separate remap tables. Each remap table contains 256 bytes. These bytes represent a re-ordering of the original colour palette.  To remap a sprite. Each pixel’s colour is used as an index into the relevant remap table.
 Remaps can be applied to cars, pedestrians, objects and tile lids. Unused remap tables will store a copy of the original palette.
 Tiles can use any remap from 0-255 but sprites (cars, peds, objects ) can use only 0-127.
 
- == `remap_index`
+## `remap_index`
 `remap_index` is a table which stores the table numbers of the 3 remaps which can be applied to each lid tile. The structure is :
 
 ```
@@ -340,7 +342,7 @@ UInt8 remap_index[256][4];
 
 This is an array of 256 sub-arrays, where each sub-array refers to 1 tile. In the sub-array, the elements store remap table numbers. Element 0 always stores 0 ( meaning no remap ). The other elements can store any number from 0-255.
 
- == `palette_index` ( 24-bit only )
+## `palette_index` ( 24-bit only )
 
 Rather than store all of the generated palettes, only unique palettes are stored. A tool called palcut takes the original palette data and generates a minimal palette set plus an index, which maps the old palette numbers onto their position in the new set. This index is stored in the 24-bit style file as `palette_index`.
 
