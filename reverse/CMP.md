@@ -52,11 +52,27 @@ block_info city_scape[6][256][256];
 | bits 0-3  | direction bits (on road, indicate vehicle direction) 0=up, 1=down, 2=left, 3=right |
 | bits 4-6  | block type (0=air, 1=water, 2=road, 3=pavement, 4=field, 5=building, 6-7=unused |
 | bit 7     | flat (1=yes, 0=no) - used for road signs, only left and top are drawn, can be walked/driven through |
-| bits 8-13 | slope type (0=none, 1-2=up, 3-4=down, 5-6=left, 7-8=right, 9-16=up, 17-24=down, 25-32=left, 33-40=right, 41-44=up,down,left,right, 45=?) |
+| bits 8-13 | slope type (0=none, 1-2=up, 3-4=down, 5-6=left, 7-8=right, 9-16=up, 17-24=down, 25-32=left, 33-40=right, 41-44=up,down,left,right) |
 | bit 14-15 | rotation of lid (0 = normal, 1 = 90°, 2=180°, 3=270°) |
 
-TODO: Understand how slope works
-
+The slope type is:
+ - 0: no slope
+ - 1-8: a slope going up at ~26° (climbing one block over two blocks)
+   - 1: climbing towards north, starting from low and reaching mid-height of a block
+   - 2: climbing towards north, starting mid-height of a block and reaching top of block
+   - 3-4: climbing towards south (3 starts low and reaches mid-block, 4 starts mid-block and reaches high)
+   - 5-6: climbing towards west
+   - 7-8: climbing towards east
+ - 9-40: a slope going up at ~7° (climbing one block over eight blocks)
+  - 9-16: climbing towards north
+  - 17-24: climbing towards south
+  - 25-32: climbing towards west
+  - 33-40: climbing towards east
+ - 41-44: a slope going up at 45° (climbing one block over one block)
+   - 41: climbing towards north
+   - 42: climbing towards south
+   - 43: climbing towards west
+   - 44: climbing towards east
 
 `type_map_ext`: this is a bitmap with the following structure:
 
