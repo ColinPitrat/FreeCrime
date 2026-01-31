@@ -55,6 +55,8 @@ block_info city_scape[6][256][256];
 | bits 8-13 | slope type (0=none, 1-2=up, 3-4=down, 5-6=left, 7-8=right, 9-16=up, 17-24=down, 25-32=left, 33-40=right, 41-44=up,down,left,right, 45=?) |
 | bit 14-15 | rotation of lid (0 = normal, 1 = 90°, 2=180°, 3=270°) |
 
+TODO: Understand how slope works
+
 
 `type_map_ext`: this is a bitmap with the following structure:
 
@@ -114,9 +116,9 @@ typedef struct {
 ```
 
 Here, `(x,y,z)` is the position of the object in the world, stated in world co-ordinates (but not fixed point).
-`type` is the object type - a code between zero and the maximum number of object types which gives an index into the object info.
+`type` is the object type - a code between zero and the maximum number of object types which gives an index into the object info. For a car, this is the model number (matching the model number in the `car_info` structure), not an index.
 `remap` is a remap table number, indicating a remap which is to be applied to this object ( 0 for none ). If remap is >=128 then the item is a car, not an object.
-`rotation`, `pitch` and `roll` are the initial rotation, pitch and roll angles of the object. They are of type `Ang16`, which is a two-byte positive integer between zero and `MAX_ANGLE`, where `MAX_ANGLE` is the equivalent of 360°.
+`rotation`, `pitch` and `roll` are the initial rotation, pitch and roll angles of the object. They are of type `Ang16`, which is a two-byte positive integer between zero and `MAX_ANGLE`, where `MAX_ANGLE` is the equivalent of 360°. For cars, `pitch` and `roll` are always 0.
 There is one entry in this list for each distinct object which is to be present in the world when the game starts.
 
 ### `route`

@@ -57,7 +57,7 @@ def main():
         palette = load_palette(filename) if is_rat else None
         return raw_data, is_rat, palette
 
-    fileindex = 1
+    fileindex = 0
     raw_data, is_rat, palette = load_file()
 
     width = 640

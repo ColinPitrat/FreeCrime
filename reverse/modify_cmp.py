@@ -319,6 +319,7 @@ def main():
     parser.add_argument('--output', '-o', help='Output CMP file (default: overwrite input)')
     parser.add_argument('--set', '-s', action='append', help='Set field value, e.g. location_data.police_station[0].x=100')
     parser.add_argument('--print', '-p', action='append', help='Print field value, e.g. header.style_number')
+    parser.add_argument('--print_slopes', '-P', action='store_true', help='Print a map of the slopes')
 
     args = parser.parse_args()
 
@@ -332,6 +333,20 @@ def main():
                 print(f"{p} = {val}")
             except Exception as e:
                 print(f"Error reading {p}: {e}")
+
+    if args.print_slopes:
+        for z in range(6):
+            print(f"Layer {z}:")
+            for y in range(256):
+                for x in range(256):
+                    column = cmp_file.base[y][x]
+                    blockd = cmp_file.columns[column]['blockd']
+                    slope = 0
+                    if z < len(blockd):
+                        slope = (cmp_file.blocks[blockd[z]]['type_map'] & 0x3F00) >> 8
+                    print(f"{slope}",end=",")
+                print()
+            print()
 
     if args.set:
         for s in args.set:

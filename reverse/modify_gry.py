@@ -1,7 +1,22 @@
-import struct
 import argparse
+import collections
+import inspect
+import struct
 import sys
 import os
+
+warnings = collections.defaultdict(int)
+MAX_WARNINGS = 10
+
+def warning(message):
+    global warnings
+    # Retrieve the line number at which WARNING was called
+    identifier = inspect.currentframe().f_back.f_lineno
+    if warnings[identifier] < MAX_WARNINGS:
+        print(f"WARNING ({identifier}): {message}", file=sys.stderr)
+    warnings[identifier] += 1
+    if warnings[identifier] == MAX_WARNINGS:
+        print(f"WARNING: Reached {MAX_WARNINGS} warnings for this message, won't print it any more", file=sys.stderr)
 
 # Helper to get/set by path
 def get_item(obj, key):
@@ -103,7 +118,7 @@ def apply_delta(base_pixels, delta_data, sprite_width, sprite_id, delta_id):
 
     while offset < len(delta_data):
         if offset + 3 > len(delta_data):
-            print(f"WARNING: sprite {sprite_id} - delta {delta_id}: offset outside of delta: offset={offset} - len delta={len(delta_data)}", file=sys.stderr)
+            warning(f"sprite {sprite_id} - delta {delta_id}: offset outside of delta: offset={offset} - len delta={len(delta_data)}")
             break
 
         # Read offset (2 bytes)
@@ -125,7 +140,7 @@ def apply_delta(base_pixels, delta_data, sprite_width, sprite_id, delta_id):
 
         # Read data
         if offset + length > len(delta_data):
-            print(f"WARNING: sprite {sprite_id} - delta {delta_id}: offset+length outside of delta: offset={offset}, length={length} - len delta={len(delta_data)}", file=sys.stderr)
+            warning(f"sprite {sprite_id} - delta {delta_id}: offset+length outside of delta: offset={offset}, length={length} - len delta={len(delta_data)}")
             break
         data = delta_data[offset : offset + length]
         offset += length
@@ -135,7 +150,7 @@ def apply_delta(base_pixels, delta_data, sprite_width, sprite_id, delta_id):
         # Ensure we don't go out of bounds
         end_pos = curr_pos + length
         if end_pos > len(pixels):
-            print(f"WARNING: sprite {sprite_id} - delta {delta_id}: delta out of sprite bounds: end_pos={end_pos} - len sprite={len(pixels)}", file=sys.stderr)
+            warning(f"sprite {sprite_id} - delta {delta_id}: delta out of sprite bounds: end_pos={end_pos} - len sprite={len(pixels)}")
             valid_len = len(pixels) - curr_pos
             if valid_len > 0:
                 pixels[curr_pos : curr_pos + valid_len] = data[:valid_len]
@@ -237,13 +252,52 @@ class StyleFile:
                              self.header['sprite_graphics_size'] +
                              self.header['sprite_numbers_size'])
 
+            clut_size_remainder = self.header['clut_size'] % 65536
+            clut_padding = 0 if clut_size_remainder == 0 else 65536 - clut_size_remainder
+
             clut_end = len(self.data) - trailing_size
-            clut_real_size = clut_end - offset
+            clut_computed_size = clut_end - offset
+            if verbose:
+                print(f"CLUT starts at {offset:08X} and ends at {clut_end:08X} (rounded up to page size)")
+                section_offset = offset
+                for section in ['clut', 'tileclut', 'spriteclut', 'newcarclut', 'fontclut']:
+                    print(f"  - {section} starts at {section_offset:08X} and is of size {self.header[f'{section}_size']:08X}")
+                    section_offset += self.header[f'{section}_size']
 
-            self.clut_data = list(self.data[offset:offset+clut_real_size])
-            offset += clut_real_size
+            if self.header['clut_size'] + clut_padding != clut_computed_size:
+                warning(f"Unexpected clut_size: clut_size = {self.header['clut_size']} - padding = {clut_padding} - computed clut size = {clut_computed_size}")
 
-            self.palette_index = list(self.data[offset:offset+self.header['palette_index_size']])
+            if self.header['clut_size'] != self.header['tileclut_size'] + self.header['spriteclut_size'] + self.header['newcarclut_size'] + self.header['fontclut_size']:
+                warning(f"clut_size = {self.header['clut_size']} != tileclut_size + spriteclut_size + newcarclut_size + fontclut_size = {self.header['tileclut_size']} + {self.header['spriteclut_size']} + {self.header['newcarclut_size']} + {self.header['fontclut_size']}")
+
+            self.clut_data_raw = list(self.data[offset:offset+clut_computed_size])
+            #self.clut_data = [[list(self.data[offset+256*i+4*j:offset+256*i+4*(j+1)]) for j in range(256)] for i in range(len(self.clut_data_raw)//1024)]
+            nb_cluts = len(self.clut_data_raw)//1024
+            self.clut_data = [[[] for c in range(256)] for p in range(nb_cluts)]
+            # Prepare the palettes
+            for pal in range(nb_cluts):
+                off = 65536 * (pal // 64) + 4 * (pal % 64)
+                for col in range(256):
+                    coff = col * 256 + off
+                    self.clut_data[pal][col] = [
+                        self.clut_data_raw[coff + 2],
+                        self.clut_data_raw[coff + 1],
+                        self.clut_data_raw[coff + 0],
+                        self.clut_data_raw[coff + 3],
+                    ]
+            for i, palette in enumerate(self.clut_data):
+                for j, color in enumerate(palette):
+                    if color[3] != 0:
+                        warning(f"Palette {i} color {j} with non-zero alpha: {color}")
+            offset += clut_computed_size
+
+            if verbose:
+                print(f"Palettes index starts at {offset:08X}")
+            self.palette_index_raw = list(self.data[offset:offset+self.header['palette_index_size']])
+            self.palette_index = []
+            for i in range(self.header['palette_index_size']//2):
+                self.palette_index.append(struct.unpack('<H', self.data[offset+2*i:offset+2*(i+1)])[0])
+
             offset += self.header['palette_index_size']
 
             self.palette = []
@@ -260,7 +314,7 @@ class StyleFile:
                 print(f"Remap tables start at {offset:08X}")
             nb_remap_tables = self.header['remap_size'] // 256
             if nb_remap_tables * 256 != self.header['remap_size']:
-                print(f"WARNING: remap_size = {self.header['remap_size']} is not a multiple of 256", file=sys.stderr)
+                warning(f"remap_size = {self.header['remap_size']} is not a multiple of 256")
             self.remap_tables = []
             for i in range(nb_remap_tables):
                 self.remap_tables.append(list(self.data[offset+i*256:offset+(i+1)*256]))
@@ -269,15 +323,16 @@ class StyleFile:
             if verbose:
                 print(f"Remap index starts at {offset:08X}")
             if self.header['remap_index_size'] != 1024:
-                print(f"WARNING: remap_index_size = {self.header['remap_index_size']} != 1024 = 4*256", file=sys.stderr)
+                warning(f"remap_index_size = {self.header['remap_index_size']} != 1024 = 4*256")
             self.remap_index = []
             for i in range(256):
                 self.remap_index.append(list(self.data[offset+i*4:offset+(i+1)*4]))
                 if self.remap_index[i][0] != 0:
-                    print(f"WARNING: remap_index[{i}][0] != 0 - this is not necessarily a problem but this is a smell!", file=sys.stderr)
+                    warning(f"remap_index[{i}][0] != 0 - this is not necessarily a problem but this is a smell!")
             offset += self.header['remap_index_size']
 
-            self.clut_data = []
+            self.clut_data_raw = []
+            self.palette_index_raw = []
             self.palette_index = []
 
         if verbose:
@@ -305,6 +360,8 @@ class StyleFile:
         offset += self.header['sprite_info_size']
         offset += self.header['sprite_graphics_size']
 
+        if verbose:
+            print(f"Sprites numbers starts at {offset:08X}")
         self.sprite_numbers = self.parse_sprite_numbers(offset, self.header['sprite_numbers_size'])
         offset += self.header['sprite_numbers_size']
 
@@ -325,6 +382,7 @@ class StyleFile:
         print(f"# Cars info: {len(self.car_info)}")
         print(f"# Sprites: {len(self.sprites)}")
         print(f"# Sprites numbers: {len(self.sprite_numbers)}")
+        print(f"# Palettes: {len(self.palette_index)}")
         print(f"# Not parsed bytes: {len(self.remaining)}")
 
     def parse_raw_blocks(self, offset, size):
@@ -363,7 +421,7 @@ class StyleFile:
 
         parsed_size = curr - offset
         if parsed_size != size:
-            print(f"WARNING: Parsed anim size {parsed_size} does not match header size {size}", file=sys.stderr)
+            warning(f"Parsed anim size {parsed_size} does not match header size {size}")
 
         return {'num_anims': num_anims, 'anims': anims}
 
@@ -387,7 +445,7 @@ class StyleFile:
             into = list(struct.unpack(f'<{num_into}H', self.data[curr:curr+num_into*2]))
             curr += num_into * 2
             if vals[6] > 9:
-                print(f'WARNING: Unknown status {vals[6]} for object #{len(objects)}', file=sys.stderr)
+                warning(f'Unknown status {vals[6]} for object #{len(objects)}')
 
             obj = {
                 'width': vals[0], 'height': vals[1], 'depth': vals[2],
@@ -551,15 +609,19 @@ class StyleFile:
         while curr_info < end_info:
             if self.version == 336: # G24
                 # 12 bytes header
-                base = struct.unpack('<B B B B H I H', self.data[curr_info:curr_info+12])
+                base = struct.unpack('<B B B B H H I', self.data[curr_info:curr_info+12])
                 curr_info += 12
-                w, h, dc, ws, sz, ptr, extra = base
+                w, h, dc, ws, sz, clut, ptr = base
+                x = ptr & 0xFF
+                y = (ptr & 0xFF00) >> 8
+                page = ptr >> 16
+                print(f"Sprite {i}: ptr=0x{ptr:08X}, x=0x{x:02X}={x}, y=0x{y:02X}={y}, page=0x{page:04X}={page}")
             else: # GRY
                 # 10 bytes header
                 base = struct.unpack('<B B B B H I', self.data[curr_info:curr_info+10])
                 curr_info += 10
                 w, h, dc, ws, sz, ptr = base
-                extra = 0
+                clut = 0
 
             deltas_info = []
             for _ in range(dc):
@@ -569,7 +631,7 @@ class StyleFile:
 
             base_size = w * h
             if base_size != sz:
-                print(f"WARNING: Sprite {i} has width={w} and height={h} but size={sz} != width*height = {base_size}", file=sys.stderr)
+                warning(f"Sprite {i} has width={w} and height={h} but size={sz} != width*height = {base_size}")
 
             if base_size > 0:
                 pixels = self.extract_sprite(gfx_offset + ptr, w, h)
@@ -589,18 +651,19 @@ class StyleFile:
                 deltas.append({'size': d_size, 'ptr': d_info['ptr'], 'data': d_data})
 
             sprite = {
-                'w': w, 'h': h, 'ws': ws, 'size': sz, 'ptr': ptr, 'extra': extra,
+                'w': w, 'h': h, 'ws': ws, 'size': sz, 'ptr': ptr, 'clut': clut,
                 'pixels': pixels, 'deltas': deltas
             }
             sprites.append(sprite)
             i += 1
 
         if curr_info != end_info:
-            print(f"WARNING: Parsed sprite info size mismatch. Expected {info_size}, Consumed {curr_info - info_offset}", file=sys.stderr)
+            warning(f"Parsed sprite info size mismatch. Expected {info_size}, Consumed {curr_info - info_offset}")
 
         expected_gfx_end = gfx_offset + gfx_size
-        if curr_gfx != expected_gfx_end:
-             print(f"WARNING: Parsed sprite graphics size mismatch. Expected {gfx_size}, Consumed {curr_gfx - gfx_offset}", file=sys.stderr)
+        # Not reaching gfx_end is expeced as deltas are stored after the sprites and we only reach the end of the sprites.
+        #if curr_gfx != expected_gfx_end:
+        #     warning(f"Parsed sprite graphics size mismatch. Expected {gfx_size}, Consumed {curr_gfx - gfx_offset}")
 
         self.sprite_graphics_padding = list(self.data[curr_gfx : expected_gfx_end])
 
@@ -608,8 +671,10 @@ class StyleFile:
 
     def parse_sprites_pages(self, offset, size):
         num_pages = size // (256*256)
-        if num_pages*256*256 != size:
-            print(f"WARNING: Sprite graphics area is not a integer number of pages: size={size}, pages={size/(256*256)}", file=sys.stderr)
+        # I'm not sure why, but the graphics size is actually not a number of pages!
+        # I suspect that's because sprites are in pages but not deltas.
+        #if num_pages*256*256 != size:
+        #    warning(f"Sprites graphics area is not a integer number of pages: size={size}, pages={size/(256*256)}")
 
         pages = []
         for p in range(num_pages):
@@ -632,11 +697,11 @@ class StyleFile:
             delta_count = len(s['deltas'])
 
             if self.version == 336: # G24
-                info_data.extend(struct.pack('<B B B B H I H', s['w'], s['h'], delta_count, s['ws'], s['w']*s['h'], s['ptr'], s.get('extra', 0)))
+                info_data.extend(struct.pack('<B B B B H I H', s['w'], s['h'], delta_count, s['ws'], s['w']*s['h'], s['ptr'], s.get('clut', 0)))
             else: # GRY
                 info_data.extend(struct.pack('<B B B B H I', s['w'], s['h'], delta_count, s['ws'], s['w']*s['h'], s['ptr']))
 
-            # TODO: fix overwriting gfx_data
+            # TODO: fix modifying gfx_data
             #gfx_data.extend(bytes(s['pixels']))
 
             for d in s['deltas']:
@@ -689,8 +754,8 @@ class StyleFile:
 
         with open(filepath, 'wb') as f:
             if self.version == 336: # G24
-                clut_blob = bytes(self.clut_data)
-                pal_idx = bytes(self.palette_index)
+                clut_blob = bytes(self.clut_data_raw)
+                pal_idx = bytes(self.palette_index_raw)
 
                 self.header['palette_index_size'] = len(pal_idx)
 
@@ -811,6 +876,7 @@ class StyleFile:
         with open(os.path.join(out_dir, html_filename), 'w') as f:
             f.write(f'<!DOCTYPE html>\n<html>\n<head>\n<title>{title}</title>\n<link rel="stylesheet" href="styles.css">\n</head>\n<body>\n<h1>{title}</h1>\n')
 
+            # TODO: handle various object types (based on self.sprite_numbers / self.offsets)
             f.write(f'<h2>Objects</h2>\n')
             for o, obj in enumerate(self.object_info):
                 f.write(f'<h3>Object #{o}</h3>\n')
@@ -866,7 +932,7 @@ class StyleFile:
                 f.write(f'<a href="sprite_{sprite_num:03}.bmp"><img src="sprite_{sprite_num:03}.bmp" style="height: 200px;"/></a>')
                 f.write(f'</span></div>')
                 f.write(f'<hr/>')
-            # TODO
+            # TODO display remaps
             if False:
                     for r in car['remap24']:
                         data.extend(struct.pack('<3h', *r))
@@ -907,11 +973,7 @@ def main():
 
         # Determine Palette
         if style_file.version == 336: # G24
-            # Try to get from clut_data
-            if hasattr(style_file, 'clut_data') and len(style_file.clut_data) >= 768:
-                palette = style_file.clut_data[:768]
-            else:
-                palette = [i for i in range(256) for _ in range(3)] # Grayscale fallback
+            palette = None
         else:
             palette = style_file.palette
 
@@ -922,13 +984,19 @@ def main():
             ('aux_blocks', style_file.aux_block)
         ]
 
+        idx = 0
         for name, blocks in block_types:
             for i, blk in enumerate(blocks):
                 fname = f"{name}_{i:03d}.bmp"
                 fpath = os.path.join(out_dir, fname)
+                if style_file.version == 336:
+                    clut_idx = style_file.palette_index[4*idx]
+                    palette = [c for color in style_file.clut_data[clut_idx] for c in color[:3]]
                 write_bmp(fpath, 64, 64, blk, palette)
+                idx += 1
 
         # Export Sprites
+        # TODO: also export remaps
         if isinstance(style_file.sprites, list) and len(style_file.sprites) > 0 and 'error' not in style_file.sprites[0]:
             for i, spr in enumerate(style_file.sprites):
                 w, h = spr['w'], spr['h']
@@ -936,6 +1004,10 @@ def main():
 
                 fname = f"sprite_{i:03d}.bmp"
                 fpath = os.path.join(out_dir, fname)
+                if style_file.version == 336:
+                    pal_idx = spr['clut'] + style_file.header['tileclut_size'] // 1024
+                    clut_idx = style_file.palette_index[pal_idx]
+                    palette = [c for color in style_file.clut_data[clut_idx] for c in color[:3]]
                 write_bmp(fpath, w, h, spr['pixels'], palette)
 
                 # Deltas
@@ -949,6 +1021,7 @@ def main():
         for i, page in enumerate(style_file.sprites_pages):
                 fname = f"sprites_page_{i:03d}.bmp"
                 fpath = os.path.join(out_dir, fname)
+                # Note: There's no right palette for that in a G24
                 write_bmp(fpath, 256, 256, page, palette)
 
         # Export HTML page with objects & cars info
@@ -973,9 +1046,10 @@ def main():
                 continue
             path, value = s.split('=', 1)
 
-            # Check prohibited paths: sprites graphics are not yet modifiable.
-            # sprites info is technically so we could be more relaxed.
-            if path.startswith('sprites'):
+            # Check prohibited paths: sprites graphics, palette_index and CLUT
+            # are not yet modifiable.
+            # sprites info is technically supported so we could be more relaxed.
+            if path.startswith('sprites') or path.startswith('palette_index') or path.contains('clut'):
                 print(f"Error: Modifying {path} is not supported yet.")
                 sys.exit(1)
 

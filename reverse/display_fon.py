@@ -117,10 +117,8 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_n: # Next
                     current_idx = (current_idx + 1) % len(images)
-                    update_display(current_idx)
                 elif event.key == pygame.K_p: # Previous
                     current_idx = (current_idx - 1) % len(images)
-                    update_display(current_idx)
                 elif event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
                     running = False
                 elif event.key == pygame.K_z:
@@ -128,7 +126,13 @@ def main():
                 elif event.key == pygame.K_d:
                     if zoom > 1:
                         zoom -= 1
+                elif event.key == pygame.K_e:
+                    if screen:
+                        export_name = f"{args.filename}_{current_idx}.BMP"
+                        pygame.image.save(screen, export_name)
+                        print(f"Saved '{export_name}'")
 
+        update_display(current_idx)
         clock.tick(30)
 
     pygame.quit()
