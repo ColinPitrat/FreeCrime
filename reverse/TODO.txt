@@ -1,0 +1,9 @@
+Problems with display_map.py:
+ - Flat sprite disappear when perfectly vertical
+ - Remapping of lids
+ - Object remap doesn't work (example with a tree around (70, 80))
+ - Car remap doesn't work? (but no example!)
+ - Handle slopes (example at 0,125)
+
+modify_cmp.py:
+ - Understand slopes
