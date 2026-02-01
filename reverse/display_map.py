@@ -293,6 +293,74 @@ class CMPParser:
             'traffic_lights': traffic_lights, 'lid_remap': lid_remap, 'flip_top_bottom': flip_top_bottom, 'flip_left_right': flip_left_right, 'railway': railway,
         }
 
+# A map of slope type to delta for top-left, top-right, bottom-left and bottom-right corners in blocks.
+slope_to_delta = {
+    # 0: no slope
+    0: (0, 0, 0, 0),
+
+    # 1-8: 26° slope
+    # 1-2: north
+    1: (0.5, 0.5, 1, 1),
+    2: (0, 0, 0.5, 0.5),
+    # 3-4: south
+    3: (1, 1, 0.5, 0.5),
+    4: (0.5, 0.5, 0, 0),
+    # 5-6: west
+    5: (0.5, 1, 0.5, 1),
+    6: (0, 0.5, 0, 0.5),
+    # 7-8: east
+    7: (1, 0.5, 1, 0.5),
+    8: (0.5, 0, 0.5, 0),
+
+    # 9-40: 7° slope
+    # 9-16: north
+    9: (0.875, 0.875, 1, 1),
+    10: (0.75, 0.75, 0.875, 0.875),
+    11: (0.625, 0.625, 0.75, 0.75),
+    12: (0.5, 0.5, 0.625, 0.625),
+    13: (0.375, 0.375, 0.5, 0.5),
+    14: (0.25, 0.25, 0.375, 0.375),
+    15: (0.125, 0.125, 0.25, 0.25),
+    16: (0, 0, 0.125, 0.125),
+    # 17-24: south
+    17: (1, 1, 0.875, 0.875),
+    18: (0.875, 0.875, 0.75, 0.75),
+    19: (0.75, 0.75, 0.625, 0.625),
+    20: (0.625, 0.625, 0.5, 0.5),
+    21: (0.5, 0.5, 0.375, 0.375),
+    22: (0.375, 0.375, 0.25, 0.25),
+    23: (0.25, 0.25, 0.125, 0.125),
+    24: (0.125, 0.125, 0, 0),
+    # 25-32: west
+    25: (0.875, 1, 0.875, 1),
+    26: (0.75, 0.875, 0.75, 0.875),
+    27: (0.625, 0.75, 0.625, 0.75),
+    28: (0.5, 0.625, 0.5, 0.625),
+    29: (0.375, 0.5, 0.375, 0.5),
+    30: (0.25, 0.375, 0.25, 0.375),
+    31: (0.125, 0.25, 0.125, 0.25),
+    32: (0, 0.125, 0, 0.125),
+    # 33-40: east # TODO
+    33: (1, 0.875, 1, 0.875),
+    34: (0.875, 0.75, 0.875, 0.75),
+    35: (0.75, 0.625, 0.75, 0.625),
+    36: (0.625, 0.5, 0.625, 0.5),
+    37: (0.5, 0.375, 0.5, 0.375),
+    38: (0.375, 0.25, 0.375, 0.25),
+    39: (0.25, 0.125, 0.25, 0.125),
+    40: (0.125, 0, 0.125, 0),
+
+    # 41-44: 45° slope
+    # 41: north
+    41: (0, 0, 1, 1),
+    # 42: south
+    42: (1, 1, 0, 0),
+    # 43: west
+    43: (0, 1, 0, 1),
+    # 43: east
+    44: (1, 0, 1, 0),
+}
+
 class MapRenderer:
     def __init__(self, cmp_file, g24_file, show_objects=True, show_tiles=True, show_sides=True, show_lids=True, min_z=0, max_z=6, width=1024, height=768, fullscreen=False):
         self.cmp = CMPParser(cmp_file)
@@ -575,6 +643,14 @@ class MapRenderer:
                     best_area = area
         return best_area['name'] if best_area else ""
 
+    def get_slope_heights(self, z, slope_type):
+        """ Returns slope heights for the 4 corners of a lid: top-left, top-right, bottom-right, bottom-left. """
+        deltas = slope_to_delta[slope_type]
+        # The weird order (deltas[2] before deltas[3]) is because slope_to_delta
+        # stores the corners of the square in the order TL, TR, BL, BR whereas
+        # the rest of the code uses TL, TR, BR, BL.
+        return z+deltas[0], z+deltas[1], z+deltas[3], z+deltas[2]
+
     def run(self):
         running = True
         show_info = True
@@ -637,7 +713,8 @@ class MapRenderer:
                                 delta = 6-len(blocks)
                                 if (z - delta) >= 0 and (z-delta) < len(blocks):
                                     block = blocks[z-delta]
-                                    c1, c2, c3, c4 = self.world_to_screen(x,y,z), self.world_to_screen(x+1,y,z), self.world_to_screen(x+1,y+1,z), self.world_to_screen(x,y+1,z)
+                                    z1, z2, z3, z4 = self.get_slope_heights(z, block['slope'])
+                                    c1, c2, c3, c4 = self.world_to_screen(x,y,z1), self.world_to_screen(x+1,y,z2), self.world_to_screen(x+1,y+1,z3), self.world_to_screen(x,y+1,z4)
                                     if step == 'sides' and self.show_sides and z < 5:
                                         b1, b2, b3, b4 = self.world_to_screen(x,y,z+1), self.world_to_screen(x+1,y,z+1), self.world_to_screen(x+1,y+1,z+1), self.world_to_screen(x,y+1,z+1)
                                         if block['top'] > 0:
@@ -654,7 +731,13 @@ class MapRenderer:
                                             if surf:
                                                 if block['lid_rotation'] != 0: surf = pygame.transform.rotate(surf, -90 * block['lid_rotation'])
                                                 w, h = int(c2[0]-c1[0])+1, int(c4[1]-c1[1])+1
-                                                if w > 0 and h > 0: self.screen.blit(pygame.transform.scale(surf, (w, h)), (int(c1[0]), int(c1[1])))
+                                                if block['slope'] != 0:
+                                                    self.draw_textured_side(surf, c1, c2, c3, c4)
+                                                else:
+                                                    if w > 0 and h > 0:
+                                                        self.screen.blit(pygame.transform.scale(surf, (w, h)), (int(c1[0]), int(c1[1])))
+                                                    else:
+                                                        print(f"WARNING: Unexpected width & height for lid: {w},{h}")
                 if self.show_objects:
                     for obj in self.cmp.objects:
                         ox, oy, oz = obj['x']/64.0, obj['y']/64.0, (obj['z']+1)/64.0
