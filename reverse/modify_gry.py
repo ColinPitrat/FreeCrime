@@ -267,9 +267,6 @@ class StyleFile:
             if self.header['clut_size'] + clut_padding != clut_computed_size:
                 warning(f"Unexpected clut_size: clut_size = {self.header['clut_size']} - padding = {clut_padding} - computed clut size = {clut_computed_size}")
 
-            if self.header['clut_size'] != self.header['tileclut_size'] + self.header['spriteclut_size'] + self.header['newcarclut_size'] + self.header['fontclut_size']:
-                warning(f"clut_size = {self.header['clut_size']} != tileclut_size + spriteclut_size + newcarclut_size + fontclut_size = {self.header['tileclut_size']} + {self.header['spriteclut_size']} + {self.header['newcarclut_size']} + {self.header['fontclut_size']}")
-
             self.clut_data_raw = list(self.data[offset:offset+clut_computed_size])
             #self.clut_data = [[list(self.data[offset+256*i+4*j:offset+256*i+4*(j+1)]) for j in range(256)] for i in range(len(self.clut_data_raw)//1024)]
             nb_cluts = len(self.clut_data_raw)//1024
@@ -615,7 +612,7 @@ class StyleFile:
                 x = ptr & 0xFF
                 y = (ptr & 0xFF00) >> 8
                 page = ptr >> 16
-                print(f"Sprite {i}: ptr=0x{ptr:08X}, x=0x{x:02X}={x}, y=0x{y:02X}={y}, page=0x{page:04X}={page}")
+                #print(f"Sprite {i}: ptr=0x{ptr:08X}, x=0x{x:02X}={x}, y=0x{y:02X}={y}, page=0x{page:04X}={page}")
             else: # GRY
                 # 10 bytes header
                 base = struct.unpack('<B B B B H I', self.data[curr_info:curr_info+10])
