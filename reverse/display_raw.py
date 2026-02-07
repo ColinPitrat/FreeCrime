@@ -23,7 +23,7 @@ def load_palette(filename, force_fallback=False):
                 data = f.read(768)
                 return np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
 
-    print(f"No palette file found, using dummy palette")
+    print(f"No palette file found, using grayscale palette")
     return np.arange(256, dtype=np.uint8).repeat(3).reshape(-1, 3)
 
 def main():
