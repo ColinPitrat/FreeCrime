@@ -5,33 +5,31 @@ import argparse
 import numpy as np
 import pygame
 
-def load_palette(filename):
+def load_palette(filename, force_fallback=False):
     """
     Load palette from a matching .ACT file or fallback to F_PAL.RAW.
     """
     act_path = os.path.splitext(filename)[0] + '.ACT'
-    if os.path.exists(act_path):
-        with open(act_path, 'rb') as f:
-            data = f.read(768)
-            return np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
-
     img_dir = os.path.dirname(filename)
-    f_pal_path = os.path.join(img_dir, 'F_PAL.RAW')
-    if os.path.exists(f_pal_path):
-        with open(f_pal_path, 'rb') as f:
-            data = f.read(768)
-            return np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
+    candidates = [act_path, os.path.join(img_dir, 'F_PAL.RAW'), 'F_PAL.RAW']
 
-    if os.path.exists('F_PAL.RAW'):
-        with open('F_PAL.RAW', 'rb') as f:
-            data = f.read(768)
-            return np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
+    if force_fallback:
+        candidates.pop(0)
 
+    for f_pal_path in candidates:
+        if os.path.exists(f_pal_path):
+            print(f"Using palette from {f_pal_path}")
+            with open(f_pal_path, 'rb') as f:
+                data = f.read(768)
+                return np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
+
+    print(f"No palette file found, using dummy palette")
     return np.arange(256, dtype=np.uint8).repeat(3).reshape(-1, 3)
 
 def main():
     parser = argparse.ArgumentParser(description='Display RAW/RAT images with varying width using Pygame.')
     parser.add_argument('filenames', nargs='+', help='The RAW or RAT file to display')
+    parser.add_argument('--fallback', '-f', action='store_true', help='Force fallback to F_PAL.RAW')
     args = parser.parse_args()
 
     for filename in args.filenames:
@@ -54,7 +52,7 @@ def main():
             raw_data = f.read()
 
         is_rat = (ext == '.RAT')
-        palette = load_palette(filename) if is_rat else None
+        palette = load_palette(filename, force_fallback=args.fallback) if is_rat else None
         return raw_data, is_rat, palette
 
     fileindex = 0
@@ -74,6 +72,8 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
                     width = width - 1
+                    if width <= 0:
+                        width = len(raw_data)
                     while len(raw_data) % width != 0:
                         width = width - 1
                         if width <= 0:
