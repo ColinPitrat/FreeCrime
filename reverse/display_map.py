@@ -13,36 +13,69 @@ class G24Parser:
             self.data = f.read()
         self.parse_header()
         self.parse_blocks()
-        self.parse_clut()
-        self.parse_pal_index()
+        if self.version == 336: # G24
+            self.parse_clut()
+            self.parse_pal_index()
+        else: # GRY
+            self.parse_palette_and_remaps()
         self.parse_object_info()
         self.parse_car_info()
         self.parse_sprite_info()
         self.parse_sprite_graphics()
 
     def parse_header(self):
-        fmt = '<' + 'I' * 16
-        size = struct.calcsize(fmt)
-        values = struct.unpack(fmt, self.data[:size])
-        self.header = {
-            'version': values[0],
-            'side_size': values[1],
-            'lid_size': values[2],
-            'aux_size': values[3],
-            'anim_size': values[4],
-            'clut_size': values[5],
-            'tileclut_size': values[6],
-            'spriteclut_size': values[7],
-            'newcarclut_size': values[8],
-            'fontclut_size': values[9],
-            'palette_index_size': values[10],
-            'object_info_size': values[11],
-            'car_size': values[12],
-            'sprite_info_size': values[13],
-            'sprite_graphics_size': values[14],
-            'sprite_numbers_size': values[15]
-        }
+        self.version = struct.unpack('<I', self.data[0:4])[0]
+
+        if self.version == 336: # G24
+            fmt = '<' + 'I' * 16
+            size = struct.calcsize(fmt)
+            values = struct.unpack(fmt, self.data[:size])
+            self.header = {
+                'version': values[0],
+                'side_size': values[1],
+                'lid_size': values[2],
+                'aux_size': values[3],
+                'anim_size': values[4],
+                'clut_size': values[5],
+                'tileclut_size': values[6],
+                'spriteclut_size': values[7],
+                'newcarclut_size': values[8],
+                'fontclut_size': values[9],
+                'palette_index_size': values[10],
+                'object_info_size': values[11],
+                'car_size': values[12],
+                'sprite_info_size': values[13],
+                'sprite_graphics_size': values[14],
+                'sprite_numbers_size': values[15]
+            }
+        else: # GRY
+            fmt = '<' + 'I'*13
+            size = struct.calcsize(fmt)
+            values = struct.unpack(fmt, self.data[:size])
+            self.header = {
+                'version': values[0],
+                'side_size': values[1],
+                'lid_size': values[2],
+                'aux_size': values[3],
+                'anim_size': values[4],
+                'palette_size': values[5],
+                'remap_size': values[6],
+                'remap_index_size': values[7],
+                'object_info_size': values[8],
+                'car_size': values[9],
+                'sprite_info_size': values[10],
+                'sprite_graphics_size': values[11],
+                'sprite_numbers_size': values[12]
+            }
         self.offset = size
+
+    def parse_palette_and_remaps(self):
+        self.palette = self.data[self.offset : self.offset + self.header['palette_size']]
+        self.offset += self.header['palette_size']
+        self.remap_tables = self.data[self.offset : self.offset + self.header['remap_size']]
+        self.offset += self.header['remap_size']
+        self.remap_index = self.data[self.offset : self.offset + self.header['remap_index_size']]
+        self.offset += self.header['remap_index_size']
 
     def deinterleave_blocks(self, data, count):
         blocks = [[0]*4096 for _ in range(count)]
@@ -145,15 +178,25 @@ class G24Parser:
         curr = self.offset
         end = self.offset + size
         while curr < end:
-            w, h, dc, v = struct.unpack('<B B B B', self.data[curr:curr+4])
-            sz, clut, xoff, yoff, page = struct.unpack('<H H B B H', self.data[curr+4:curr+12])
-            curr += 12
-            for _ in range(dc):
-                curr += 6
-            self.sprite_info.append({
-                'w': w, 'h': h, 'clut': clut, 'page': page,
-                'xoff': xoff, 'yoff': yoff, 'dc': dc
-            })
+            if self.version == 336: # G24
+                w, h, dc, v = struct.unpack('<B B B B', self.data[curr:curr+4])
+                sz, clut, xoff, yoff, page = struct.unpack('<H H B B H', self.data[curr+4:curr+12])
+                curr += 12
+                for _ in range(dc):
+                    curr += 6
+                self.sprite_info.append({
+                    'w': w, 'h': h, 'clut': clut, 'page': page,
+                    'xoff': xoff, 'yoff': yoff, 'dc': dc
+                })
+            else: # GRY
+                w, h, dc, v = struct.unpack('<B B B B', self.data[curr:curr+4])
+                sz, ptr = struct.unpack('<H I', self.data[curr+4:curr+10])
+                curr += 10
+                for _ in range(dc):
+                    curr += 6
+                self.sprite_info.append({
+                    'w': w, 'h': h, 'dc': dc, 'ptr': ptr
+                })
         self.offset = end
 
     def parse_sprite_graphics(self):
@@ -183,16 +226,26 @@ class G24Parser:
                 current_base += vals[i]
 
     def get_color(self, clut_idx, color_idx):
-        page = clut_idx // 64
-        sub = clut_idx % 64
-        off = page * 65536 + color_idx * 256 + sub * 4
-        if off + 3 > len(self.clut_data):
-            return (0, 0, 0, 0)
-        b = self.clut_data[off]
-        g = self.clut_data[off+1]
-        r = self.clut_data[off+2]
-        a = 255 if color_idx != 0 else 0
-        return (r, g, b, a)
+        if self.version == 336: # G24
+            page = clut_idx // 64
+            sub = clut_idx % 64
+            off = page * 65536 + color_idx * 256 + sub * 4
+            if off + 3 > len(self.clut_data):
+                return (0, 0, 0, 0)
+            b = self.clut_data[off]
+            g = self.clut_data[off+1]
+            r = self.clut_data[off+2]
+            a = 255 if color_idx != 0 else 0
+            return (r, g, b, a)
+        else: # GRY
+            # clut_idx is the remap table index
+            palette_idx = self.remap_tables[clut_idx * 256 + color_idx]
+            off = palette_idx * 3
+            r = self.palette[off] * 4
+            g = self.palette[off+1] * 4
+            b = self.palette[off+2] * 4
+            a = 255 if color_idx != 0 else 0
+            return (r, g, b, a)
 
     def get_palette(self, clut_idx):
         pal = []
@@ -420,19 +473,35 @@ class MapRenderer:
         if idx == 0: return None
         num_side = len(self.g24.side_blocks)
         num_lid = len(self.g24.lid_blocks)
-        if type_name == 'side':
-            if idx >= len(self.g24.side_blocks): return None
-            pixels = self.g24.side_blocks[idx]
-            clut_idx = self.g24.pal_index[4*idx]
-        elif type_name == 'lid':
-            if idx >= len(self.g24.lid_blocks): return None
-            pixels = self.g24.lid_blocks[idx]
-            clut_idx = self.g24.pal_index[4 * (idx + num_side) + remap]
-        elif type_name == 'aux':
-            if idx >= len(self.g24.aux_blocks): return None
-            pixels = self.g24.aux_blocks[idx]
-            clut_idx = self.g24.pal_index[4 * (idx + num_side + num_lid)]
-        else: return None
+        if self.g24.version == 336: # G24
+            if type_name == 'side':
+                if idx >= len(self.g24.side_blocks): return None
+                pixels = self.g24.side_blocks[idx]
+                clut_idx = self.g24.pal_index[4*idx]
+            elif type_name == 'lid':
+                if idx >= len(self.g24.lid_blocks): return None
+                pixels = self.g24.lid_blocks[idx]
+                clut_idx = self.g24.pal_index[4 * (idx + num_side) + remap]
+            elif type_name == 'aux':
+                if idx >= len(self.g24.aux_blocks): return None
+                pixels = self.g24.aux_blocks[idx]
+                clut_idx = self.g24.pal_index[4 * (idx + num_side + num_lid)]
+            else: return None
+        else: # GRY
+            if type_name == 'side':
+                if idx >= len(self.g24.side_blocks): return None
+                pixels = self.g24.side_blocks[idx]
+                clut_idx = 0
+            elif type_name == 'lid':
+                if idx >= len(self.g24.lid_blocks): return None
+                pixels = self.g24.lid_blocks[idx]
+                clut_idx = self.g24.remap_index[idx * 4 + remap]
+            elif type_name == 'aux':
+                if idx >= len(self.g24.aux_blocks): return None
+                pixels = self.g24.aux_blocks[idx]
+                clut_idx = 0
+            else: return None
+
         palette = self.g24.get_palette(clut_idx)
         surf = pygame.Surface((64, 64), pygame.SRCALPHA)
         for y in range(64):
@@ -448,35 +517,38 @@ class MapRenderer:
         info = self.g24.sprite_info[spr_num]
         w, h = info['w'], info['h']
         if w == 0 or h == 0: return None
-        page_size = 256 * 256
-        pixel_start = info['page'] * page_size + info['yoff'] * 256 + info['xoff']
-        tile_clut_count = self.g24.header['tileclut_size'] // 1024
-        sprite_clut_count = self.g24.header['spriteclut_size'] // 1024
-        newcar_clut_count = self.g24.header['newcarclut_size'] // 1024
 
-        # Virtual palette index
-        virtual_clut = tile_clut_count + info['clut']
-        if remap > 0:
-            if remap < 128: # Object remap
-                #virtual_clut = tile_clut_count + info['clut'] + remap
-                #print(f"Object remap: {tile_clut_count} + {info['clut']} + {remap} = {virtual_clut}")
-                # It seems that there's actually no such thing as object remap!
-                pass
-            else: # Car
-                # TODO: verify this and make it work properly (if it doesn't)!
-                virtual_clut = tile_clut_count + sprite_clut_count + (remap - 128)
+        if self.g24.version == 336: # G24
+            page_size = 256 * 256
+            pixel_start = info['page'] * page_size + info['yoff'] * 256 + info['xoff']
+            tile_clut_count = self.g24.header['tileclut_size'] // 1024
+            sprite_clut_count = self.g24.header['spriteclut_size'] // 1024
 
-        if virtual_clut >= len(self.g24.pal_index):
+            # Virtual palette index
+            virtual_clut = tile_clut_count + info['clut']
+            if remap > 0:
+                if remap >= 128: # Car
+                    virtual_clut = tile_clut_count + sprite_clut_count + (remap - 128)
+
+            if virtual_clut >= len(self.g24.pal_index):
+                clut_idx = 0
+            else:
+                clut_idx = self.g24.pal_index[virtual_clut]
+            stride = 256
+        else: # GRY
+            pixel_start = info['ptr']
             clut_idx = 0
-        else:
-            clut_idx = self.g24.pal_index[virtual_clut]
+            if remap > 0:
+                clut_idx = remap
+            stride = 256
 
         palette = self.g24.get_palette(clut_idx)
         surf = pygame.Surface((w, h), pygame.SRCALPHA)
         for py in range(h):
-            row_start = pixel_start + py * 256
+            row_start = pixel_start + py * stride
             for px in range(w):
-                surf.set_at((px, py), palette[self.g24.sprite_graphics[row_start + px]])
+                if row_start + px < len(self.g24.sprite_graphics):
+                    surf.set_at((px, py), palette[self.g24.sprite_graphics[row_start + px]])
         self.sprite_cache[key] = surf
         return surf
 

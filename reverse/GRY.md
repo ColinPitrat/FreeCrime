@@ -25,7 +25,7 @@ Most of the information in this page comes from https://www.moddb.com/downloads/
 | lid_block | lid_size | |
 | aux_block | aux_size | |
 | anim | anim_size | |
-| palette | palette_size | 3 bytes per colour RGB |
+| palette | palette_size | 3 bytes per colour RGB, each between 0 and 63 |
 | remap_tables | remap_size | |
 | remap_index | remap_index_size | |
 | object_info | object_info_size | |

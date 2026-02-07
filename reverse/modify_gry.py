@@ -92,12 +92,13 @@ def write_bmp(filepath, width, height, pixels, palette):
 
         # Palette
         # Palette input is expected to be [r, g, b, r, g, b...]
+        # Each component is between 0 and 63, multiplying by 4 to convert to a value between 0 and 255.
         # BMP expects B, G, R, Reserved
         for i in range(256):
             if i * 3 + 2 < len(palette):
-                r = palette[i * 3]
-                g = palette[i * 3 + 1]
-                b = palette[i * 3 + 2]
+                r = palette[i * 3] * 4
+                g = palette[i * 3 + 1] * 4
+                b = palette[i * 3 + 2] * 4
                 f.write(struct.pack('BBBB', b, g, r, 0))
             else:
                 f.write(b'\x00\x00\x00\x00')
