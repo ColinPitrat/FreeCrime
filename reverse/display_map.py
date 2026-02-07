@@ -373,6 +373,8 @@ class MapRenderer:
         self.screen_width, self.screen_height = width, height
         self.view_x, self.view_y = -4.0, -4.0
         self.view_x, self.view_y = 128.0, 128.0
+        self.view_x, self.view_y = 155.0, 144.0
+        self.view_x, self.view_y = 70.0, 80.0
         self.base_tile_size = 64
         self.base_scale = 1.0
         self.display_tiles_h = int(self.screen_width / 64 + 1)  # Number of tiles to display horizontally
@@ -389,6 +391,7 @@ class MapRenderer:
         self.font = pygame.font.SysFont('monospace', 24, bold=True)
         self.clock = pygame.time.Clock()
         self.init_display()
+        self.apply_remaps = True
 
     def init_display(self):
         if self.fullscreen:
@@ -407,12 +410,12 @@ class MapRenderer:
                     return True, anim['frames'][frame_idx - 1]
         return False, block_idx
 
-    def get_tile_surface(self, type_name, idx, ticks=0):
+    def get_tile_surface(self, type_name, idx, ticks=0, remap=0):
         which = 1 if type_name == 'lid' else 0
         aux, idx = self.get_animated_block(idx, which, ticks)
         if aux:
             type_name = 'aux'
-        key = (type_name, idx)
+        key = (type_name, idx, remap)
         if key in self.surface_cache: return self.surface_cache[key]
         if idx == 0: return None
         num_side = len(self.g24.side_blocks)
@@ -424,7 +427,7 @@ class MapRenderer:
         elif type_name == 'lid':
             if idx >= len(self.g24.lid_blocks): return None
             pixels = self.g24.lid_blocks[idx]
-            clut_idx = self.g24.pal_index[4 * (idx + num_side)]
+            clut_idx = self.g24.pal_index[4 * (idx + num_side) + remap]
         elif type_name == 'aux':
             if idx >= len(self.g24.aux_blocks): return None
             pixels = self.g24.aux_blocks[idx]
@@ -455,12 +458,12 @@ class MapRenderer:
         virtual_clut = tile_clut_count + info['clut']
         if remap > 0:
             if remap < 128: # Object remap
-                # TODO: make this work properly!
-                # Assuming object remaps follow sprite cluts?
-                # Actually, let's try to use newcarclut for both if remap > 0
-                virtual_clut = tile_clut_count + sprite_clut_count + (remap - 1)
-            else: # Car remap
-                # TODO: make this work properly!
+                #virtual_clut = tile_clut_count + info['clut'] + remap
+                #print(f"Object remap: {tile_clut_count} + {info['clut']} + {remap} = {virtual_clut}")
+                # It seems that there's actually no such thing as object remap!
+                pass
+            else: # Car
+                # TODO: verify this and make it work properly (if it doesn't)!
                 virtual_clut = tile_clut_count + sprite_clut_count + (remap - 128)
 
         if virtual_clut >= len(self.g24.pal_index):
@@ -589,6 +592,7 @@ class MapRenderer:
                                         int(max_x - min_x),
                                         int(max_y - min_y))
 
+        # TODO: Fix this so that single lines are displayed.
         if int(min_x) == int(max_x) or int(min_y) == int(max_y):
             return None, None
 
@@ -684,6 +688,8 @@ class MapRenderer:
                         # Above 8, things start getting slow because pygame.transform.scale becomes slow.
                         if self.base_scale < 8:
                             self.base_scale *= 2
+                    if event.key == pygame.K_r:
+                        self.apply_remaps = not self.apply_remaps
             keys = pygame.key.get_pressed()
             move_speed = 1
             if keys[pygame.K_LEFT]: self.view_x -= move_speed
@@ -727,11 +733,21 @@ class MapRenderer:
                                             self.draw_textured_side(pygame.transform.flip(self.get_tile_surface('side', block['right'], ticks), block['flip_left_right'], 0), c2, c3, b3, b2)
                                     if step == 'lid' and self.show_lids:
                                         if block['lid'] > 0:
-                                            surf = self.get_tile_surface('lid', block['lid'], ticks)
+                                            lid_remap = block['lid_remap']
+                                            if not self.apply_remaps:
+                                                lid_remap = 0
+                                            surf = self.get_tile_surface('lid', block['lid'], ticks, lid_remap)
                                             if surf:
                                                 if block['lid_rotation'] != 0: surf = pygame.transform.rotate(surf, -90 * block['lid_rotation'])
                                                 w, h = int(c2[0]-c1[0])+1, int(c4[1]-c1[1])+1
                                                 if block['slope'] != 0:
+                                                    # I'm not sure why this is needed, but without the 'spill', there's a black border around some of the blocks with slopes.
+                                                    # This doesn't fully fix the issue but this is the best result I managed so far.
+                                                    spill = 2*self.base_scale
+                                                    c1 = int(c1[0]), int(c1[1])
+                                                    c2 = int(c2[0]+spill), int(c2[1])
+                                                    c3 = int(c3[0]+spill), int(c3[1]+spill)
+                                                    c4 = int(c4[0]), int(c4[1]+spill)
                                                     self.draw_textured_side(surf, c1, c2, c3, c4)
                                                 else:
                                                     if w > 0 and h > 0:
@@ -774,17 +790,36 @@ class MapRenderer:
                                     else:
                                         print(f"ERROR: Object not found: {o_idx}")
                                 if spr_num >= 0:
+                                    if not self.apply_remaps:
+                                        remap = 0
                                     spr_surf = self.get_sprite_surface(spr_num, remap)
                                     if spr_surf:
                                         scaled = pygame.transform.scale(spr_surf, (max(1, int(spr_surf.get_width()*scale)), max(1, int(spr_surf.get_height()*scale))))
                                         rotated = pygame.transform.rotate(scaled, obj['rotation'] * 90 / 256)
                                         self.screen.blit(rotated, (int(sx - rotated.get_width()/2), int(sy - rotated.get_height()/2)))
 
-                    for obj in self.cmp.objects:
-                        if obj['remap'] < 128:
-                            o_idx = obj['type']
-                            if o_idx >= len(self.g24.object_info):
-                                print(f"ERROR: Object not found: {o_idx}")
+
+            # Code to find where blocks with a particular property are
+            if False:
+                for y in range(0, 256):
+                    for x in range(0, 256):
+                        _, blocks = self.cmp.get_column(x, y)
+                        for block in blocks:
+                            if block['lid_remap'] != 0:
+                                print(f"Remapped lid at {x},{y}")
+                break
+            # Code to find where objects with a particular property are
+            if False:
+                for obj in self.cmp.objects:
+                    if obj['remap'] > 0 and obj['remap'] < 128:
+                        x = obj['x'] // 64
+                        y = obj['y'] // 64
+                        print(f"Remapped object {obj} at {x},{y}")
+                    if obj['remap'] > 128:
+                        x = obj['x'] // 64
+                        y = obj['y'] // 64
+                        print(f"Remapped car {obj} at {x},{y}")
+                break
 
             # Display area name
             area_name = self.get_area_name(int(self.view_x + 10), int(self.view_y + 8))
@@ -797,7 +832,7 @@ class MapRenderer:
                 self.screen.blit(img, (self.screen_width // 2 - img.get_width() // 2, self.screen_height - 50))
 
             if show_info:
-                text = f"X: {self.view_x:.2f} Y: {self.view_y:.2f} - FPS: {fps} - zoom: {100*self.base_scale}"
+                text = f"X: {self.view_x:.2f} Y: {self.view_y:.2f} - FPS: {fps:.2f} - zoom: {100*self.base_scale} - apply remaps: {self.apply_remaps}"
                 img = self.font.render(text, True, (255, 255, 255))
                 bg = pygame.Surface((img.get_width() + 40, img.get_height() + 40))
                 bg.fill((0, 0, 0))
