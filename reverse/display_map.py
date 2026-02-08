@@ -430,6 +430,7 @@ class MapRenderer:
         self.view_x, self.view_y = 70.0, 80.0
         self.base_tile_size = 64
         self.base_scale = 1.0
+        self.clicked_x, self.clicked_y = 0, 0
         self.display_tiles_h = int(self.screen_width / 64 + 1)  # Number of tiles to display horizontally
         self.display_tiles_v = int(self.screen_height / 64 + 1)  # Number of tiles to display vertically
         self.scale_factor = 0.1
@@ -745,6 +746,12 @@ class MapRenderer:
             frames += 1
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: running = False
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        # We consider the position at the lowest level.
+                        # TODO: Ideally, we would adapt to the level of the tile pressed.
+                        cx, cy = self.screen_to_world(event.pos[0], event.pos[1], 5)
+                        self.clicked_x, self.clicked_y = int(cx*64), int(cy*64)
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_i: show_info = not show_info
                     if event.key == pygame.K_ESCAPE or event.key == pygame.K_q: running = False
@@ -884,13 +891,15 @@ class MapRenderer:
             if False:
                 for obj in self.cmp.objects:
                     if obj['remap'] > 0 and obj['remap'] < 128:
+                        info = self.g24.object_info[obj['type']]
                         x = obj['x'] // 64
                         y = obj['y'] // 64
-                        print(f"Remapped object {obj} at {x},{y}")
+                        print(f"Remapped object at {x},{y}: {obj} - {info}")
                     if obj['remap'] > 128:
+                        info = next(car for car in self.g24.car_info if car['model'] == obj['type'])
                         x = obj['x'] // 64
                         y = obj['y'] // 64
-                        print(f"Remapped car {obj} at {x},{y}")
+                        print(f"Remapped car at {x},{y}: {obj} - {info}")
                 break
 
             # Display area name
@@ -904,13 +913,18 @@ class MapRenderer:
                 self.screen.blit(img, (self.screen_width // 2 - img.get_width() // 2, self.screen_height - 50))
 
             if show_info:
-                text = f"X: {self.view_x:.2f} Y: {self.view_y:.2f} - FPS: {fps:.2f} - zoom: {100*self.base_scale} - apply remaps: {self.apply_remaps}"
-                img = self.font.render(text, True, (255, 255, 255))
-                bg = pygame.Surface((img.get_width() + 40, img.get_height() + 40))
+                text1 = f"X: {self.view_x:.2f} Y: {self.view_y:.2f} - FPS: {fps:.2f} - zoom: {100*self.base_scale}"
+                text2 = f"Remaps: {self.apply_remaps} - Clicked pos (tile): {self.clicked_x}, {self.clicked_y} ({self.clicked_x//64}, {self.clicked_y//64})"
+                img1 = self.font.render(text1, True, (255, 255, 255))
+                img2 = self.font.render(text2, True, (255, 255, 255))
+                width = max(img1.get_width(), img2.get_width()) + 40
+                height = img1.get_height() + img2.get_height() + 50
+                bg = pygame.Surface((width, height))
                 bg.fill((0, 0, 0))
                 bg.set_alpha(180)
                 self.screen.blit(bg, (10, 10))
-                self.screen.blit(img, (30, 30))
+                self.screen.blit(img1, (30, 30))
+                self.screen.blit(img2, (30, 30+img1.get_height() + 10))
             pygame.display.flip()
             self.clock.tick(60)
         pygame.quit()

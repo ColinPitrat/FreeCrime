@@ -124,7 +124,7 @@ Objects positions are stored in a list of:
 typedef struct {
 	UInt16 x,y,z;
 	Uint8 type;
-	UInt8 remap;
+	UInt8 is_car;
 	Ang16 rotation;
 	Ang16 pitch;
 	Ang16 roll;
@@ -133,7 +133,7 @@ typedef struct {
 
 Here, `(x,y,z)` is the position of the object in the world, stated in world co-ordinates (but not fixed point).
 `type` is the object type - a code between zero and the maximum number of object types which gives an index into the object info. For a car, this is the model number (matching the model number in the `car_info` structure), not an index.
-`remap` is a remap table number, indicating a remap which is to be applied to this object ( 0 for none ). If remap is >=128 then the item is a car, not an object.
+`is_car` has its top bit set for cars (i.e. if `is_car` > 128, this is a car otherwise it's an object). There can be values that are neither 0 nor 128 (the value 1 is found for a couple of trees in NYC.CMP and the value 125 is found for a pigeon in UK.CMP). However this doesn't seem to have any visible effect. Some documentation on Internet suggests that this is a remap, but this couldn't be confirmed by experiments with the game.
 `rotation`, `pitch` and `roll` are the initial rotation, pitch and roll angles of the object. They are of type `Ang16`, which is a two-byte positive integer between zero and `MAX_ANGLE`, where `MAX_ANGLE` is the equivalent of 360°. For cars, `pitch` and `roll` are always 0.
 There is one entry in this list for each distinct object which is to be present in the world when the game starts.
 

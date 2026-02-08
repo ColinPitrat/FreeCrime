@@ -96,9 +96,9 @@ def write_bmp(filepath, width, height, pixels, palette):
         # BMP expects B, G, R, Reserved
         for i in range(256):
             if i * 3 + 2 < len(palette):
-                r = palette[i * 3] * 4
-                g = palette[i * 3 + 1] * 4
-                b = palette[i * 3 + 2] * 4
+                r = palette[i * 3]
+                g = palette[i * 3 + 1]
+                b = palette[i * 3 + 2]
                 f.write(struct.pack('BBBB', b, g, r, 0))
             else:
                 f.write(b'\x00\x00\x00\x00')
@@ -305,7 +305,7 @@ class StyleFile:
         else: # GRY
             if verbose:
                 print(f"Palette starts at {offset:08X}")
-            self.palette = list(self.data[offset:offset+self.header['palette_size']])
+            self.palette = list([x*4 for x in self.data[offset:offset+self.header['palette_size']]])
             offset += self.header['palette_size']
 
             if verbose:
@@ -842,7 +842,7 @@ class StyleFile:
 
     def write_css(self, out_dir, filename):
         with open(os.path.join(out_dir, filename), 'w') as f:
-            f.write('body {\n  background-color: #A0A0A0;\n}\n')
+            f.write('body {\n  background-color: #FFFFFF;\n}\n')
             f.write('div.object {\n  width: 100%;\n  margin: 0\n  padding: 0\n  display: flex;\n}\n\n');
             f.write('span.infos {\n  width: 49%;\n  display: inline-block;\n}\n\n');
             f.write('th {\n  text-align: left;\n}\n');
@@ -1024,7 +1024,7 @@ def main():
 
         # Export HTML page with objects & cars info
         style_file.write_css(out_dir, 'styles.css')
-        style_file.write_html(out_dir, args.input_file)
+        style_file.write_html(out_dir, os.path.basename(args.input_file))
 
         print(f"Exported images to {out_dir}")
 
