@@ -425,9 +425,9 @@ class MapRenderer:
         self.min_z, self.max_z = min_z, max_z
         self.screen_width, self.screen_height = width, height
         self.view_x, self.view_y = -4.0, -4.0
-        self.view_x, self.view_y = 128.0, 128.0
-        self.view_x, self.view_y = 155.0, 144.0
-        self.view_x, self.view_y = 70.0, 80.0
+        #self.view_x, self.view_y = 128.0, 128.0
+        #self.view_x, self.view_y = 155.0, 144.0
+        #self.view_x, self.view_y = 70.0, 80.0
         self.base_tile_size = 64
         self.base_scale = 1.0
         self.clicked_x, self.clicked_y = 0, 0
@@ -456,8 +456,9 @@ class MapRenderer:
     def get_animated_block(self, block_idx, which, ticks):
         for anim in self.g24.animations:
             if anim['block'] == block_idx and anim['which'] == which:
-                total_frames = anim['frame_count'] + 1
-                frame_idx = (ticks // (max(1, anim['speed']) * 1000 // 60)) % total_frames
+                total_frames = anim['frame_count']# + 1
+                # 1 game cycle == 1/20th of a second
+                frame_idx = (ticks // (max(1, anim['speed']) * 1000 // 20)) % total_frames
                 if frame_idx == 0:
                     return False, block_idx
                 else:
