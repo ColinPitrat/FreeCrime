@@ -851,6 +851,20 @@ class StyleFile:
             return "tank"
         return f"<b>unknown vehicle ({vtype})</b>"
 
+    def vehicle_additional_sprites(self, vtype):
+        """ Some vehicles have additional sprites:
+         - motorcycle have 12 additional sprites: 4 for falling on each side and 4 others (maybe for wheelies but actually unused?)
+         - train have 4 additional sprites
+         - tank have 1 additional sprite
+        """
+        if vtype == 3:     # motorcycle
+            return 12
+        elif vtype == 8:   # train
+            return 4
+        elif vtype == 14:  # tank
+            return 1
+        return 0
+
     def vehicle_type_const(self, vtype):
         if vtype == 0:
             return "SPR_BUS"
@@ -969,6 +983,12 @@ class StyleFile:
                 sprite_num = car['spr_num']+self.offsets[self.vehicle_type_const(car['vtype'])]
                 f.write(f'<a href="sprite_{sprite_num:03}.bmp"><img src="sprite_{sprite_num:03}.bmp" style="height: 200px;"/></a>')
                 used_sprites.add(sprite_num)
+                additional = self.vehicle_additional_sprites(car['vtype'])
+                if additional > 0:
+                    f.write(f'<br/>Additional sprites: ')
+                    for i in range(additional):
+                        f.write(f'<a href="sprite_{sprite_num+i+1:03}.bmp"><img src="sprite_{sprite_num+i+1:03}.bmp"/></a>')
+                        used_sprites.add(sprite_num+i+1)
 
                 f.write(f'<br/>Remaps: ')
                 for r in range(12):
@@ -976,6 +996,12 @@ class StyleFile:
                     filepath = os.path.join(out_dir, filename)
                     if os.path.exists(filepath):
                         f.write(f'<a href="{filename}"><img src="{filename}" style="height: 50px;"/></a>')
+
+                deltas = self.sprites[sprite_num]['deltas']
+                if len(deltas) > 0:
+                    f.write(f'<br/>Deltas: ')
+                    for delta in range(len(deltas)):
+                        f.write(f'<a href="sprite_{sprite_num:03}_delta_{delta:03}.bmp"><img src="sprite_{sprite_num:03}_delta_{delta:03}.bmp"/></a>')
 
                 f.write(f'</span></div>')
                 f.write(f'<hr/>')
