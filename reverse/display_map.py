@@ -1,5 +1,6 @@
 import argparse
 import cv2
+import math
 import numpy as np
 import pygame
 from pygame import gfxdraw
@@ -395,7 +396,7 @@ slope_to_delta = {
     30: (0.25, 0.375, 0.25, 0.375),
     31: (0.125, 0.25, 0.125, 0.25),
     32: (0, 0.125, 0, 0.125),
-    # 33-40: east # TODO
+    # 33-40: east
     33: (1, 0.875, 1, 0.875),
     34: (0.875, 0.75, 0.875, 0.75),
     35: (0.75, 0.625, 0.75, 0.625),
@@ -448,6 +449,7 @@ class MapRenderer:
         self.clock = pygame.time.Clock()
         self.init_display()
         self.apply_remaps = True
+        self.play_mode = False
 
     def init_display(self):
         if self.fullscreen:
@@ -763,8 +765,6 @@ class MapRenderer:
             "Policeman ???", "Policeman mounting motorcycle", "Policeman on motorcycle", "Policeman dismounting motorcycle", "Policeman shooting", "Policeman jumping over car",
             "Policeman driving", "Paramedic healing", "Policeman electrocuted", "Policman firing machine gun"
         ]
-        # TODO: Finalize grouping
-        # 47 & 36 = cops
         ped_grouping = [
             8, 8, 8, 10, 4, 4, 2, 1, 4, 1, 6, 2,
             10, 2, 10, 4, 1, 4, 2, 6, 1, 1, 8,
@@ -782,9 +782,36 @@ class MapRenderer:
         vrotate = 5 # rotation speed
         player_remap = 0
         anim_tick_start = pygame.time.get_ticks()
+        car_speed = 0
+        help_text = ["Commands:",
+                     " F1: Show this help message",
+                     " F2: Switch between display mode and play mode",
+                     " i: Show information window",
+                     " q/Escape: Quit",
+                     " f: toggle fullscreen",
+                     "",
+                     "In display mode:",
+                     " up/down/left/right: move the view in the corresponding direction",
+                     " x/c: rotate the player left(counter clockwise)/right(clockwise)",
+                     " s: switch between not showing player, showing pedestrian player, showing car player",
+                     " p: switch to previous player sprite",
+                     " n: switch to next player sprite",
+                     " h/H: move player up/down",
+                     " m/M: switch to next/previous player remap",
+                     " u/d: move camera up/down (a.k.a. dezoom/zoom)",
+                     " r: toggle apply remaps",
+                     "",
+                     "In play mode:",
+                     " up: move forward/accelerate",
+                     " down: move backward/decelarate",
+                     " left/right: turn left(counter clockwise)/right(clockwise)",
+                     " c: switch between car/pedestrian",
+                     " n/p: switch to next/previous car",
+                     ]
 
         running = True
         show_info = True
+        show_help = False
         # 0 = no, 1 = pedestrian, 2 = car
         show_player = 0
         start = None
@@ -809,58 +836,123 @@ class MapRenderer:
                         cx, cy = self.screen_to_world(event.pos[0], event.pos[1], 5)
                         self.clicked_x, self.clicked_y = int(cx*64), int(cy*64)
                 if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_F1:
+                        show_help = not show_help
+                    if event.key == pygame.K_F2:
+                        self.play_mode = not self.play_mode
+                        if self.play_mode:
+                            show_player = 1
                     if event.key == pygame.K_i: show_info = not show_info
-                    if event.key == pygame.K_s:
-                        show_player = (show_player + 1) % 3
-                        player_sprite = 0
-                        player_remap = 0
-                        anim_tick_start = pygame.time.get_ticks()
-                    if event.key == pygame.K_p:
-                        if player_sprite > 0:
-                            player_sprite -= 1
-                        anim_tick_start = ticks
-                    if event.key == pygame.K_n:
-                        if (show_player == 1 and player_sprite + 1 < len(ped_grouping)) or (show_player == 2 and player_sprite + 1 < len(self.g24.car_info)):
-                            player_sprite += 1
-                        anim_tick_start = ticks
-                    if event.key == pygame.K_h:
-                        if event.mod & pygame.KMOD_SHIFT:
-                            if player_height < 5:
-                                player_height += 1
-                        else:
-                            if player_height > 0:
-                                player_height -= 1
-                    if event.key == pygame.K_m:
-                        if event.mod & pygame.KMOD_SHIFT:
-                            if player_remap > 0:
-                                player_remap -= 1
-                        else:
-                            #if (show_player == 1 and player_remap < 64) or (show_player == 2 and player_remap < 12):
-                            if (show_player == 1 and player_remap < 300) or (show_player == 2 and player_remap < 12):
-                                player_remap += 1
                     if event.key == pygame.K_ESCAPE or event.key == pygame.K_q: running = False
                     if event.key == pygame.K_f:
                         self.fullscreen = not self.fullscreen
                         self.init_display()
-                    if event.key == pygame.K_u:
-                        # 0.05 is roughly where we start to see the whole map on the screen (at 1024x768)
-                        # This is already very slow, no need to let the user go further.
-                        if self.base_scale > 0.05:
-                            self.base_scale /= 2
-                    if event.key == pygame.K_d:
-                        # Above 8, things start getting slow because pygame.transform.scale becomes slow.
-                        if self.base_scale < 8:
-                            self.base_scale *= 2
-                    if event.key == pygame.K_r:
-                        self.apply_remaps = not self.apply_remaps
+                    if self.play_mode:
+                        if event.key == pygame.K_c:
+                            show_player = 2 if show_player == 1 else 1
+                        if event.key == pygame.K_n:
+                            # TODO: Switch to next car model
+                            pass
+                        if event.key == pygame.K_p:
+                            # TODO: Switch to previous car model
+                            pass
+                    else:
+                        if event.key == pygame.K_s:
+                            show_player = (show_player + 1) % 3
+                            player_sprite = 0
+                            player_remap = 0
+                            anim_tick_start = pygame.time.get_ticks()
+                        if event.key == pygame.K_p:
+                            if player_sprite > 0:
+                                player_sprite -= 1
+                            anim_tick_start = ticks
+                        if event.key == pygame.K_n:
+                            if (show_player == 1 and player_sprite + 1 < len(ped_grouping)) or (show_player == 2 and player_sprite + 1 < len(self.g24.car_info)):
+                                player_sprite += 1
+                            anim_tick_start = ticks
+                        if event.key == pygame.K_h:
+                            if event.mod & pygame.KMOD_SHIFT:
+                                if player_height < 5:
+                                    player_height += 1
+                            else:
+                                if player_height > 0:
+                                    player_height -= 1
+                        if event.key == pygame.K_m:
+                            if event.mod & pygame.KMOD_SHIFT:
+                                if player_remap > 0:
+                                    player_remap -= 1
+                            else:
+                                if (show_player == 1 and player_remap < 64) or (show_player == 2 and player_remap < 12):
+                                    player_remap += 1
+                        if event.key == pygame.K_u:
+                            # 0.05 is roughly where we start to see the whole map on the screen (at 1024x768)
+                            # This is already very slow, no need to let the user go further.
+                            if self.base_scale > 0.05:
+                                self.base_scale /= 2
+                        if event.key == pygame.K_d:
+                            # Above 8, things start getting slow because pygame.transform.scale becomes slow.
+                            if self.base_scale < 8:
+                                self.base_scale *= 2
+                        if event.key == pygame.K_r:
+                            self.apply_remaps = not self.apply_remaps
             keys = pygame.key.get_pressed()
-            move_speed = 1
-            if keys[pygame.K_LEFT]: self.view_x -= move_speed
-            if keys[pygame.K_RIGHT]: self.view_x += move_speed
-            if keys[pygame.K_UP]: self.view_y -= move_speed
-            if keys[pygame.K_DOWN]: self.view_y += move_speed
-            if keys[pygame.K_x]: player_rotation += vrotate
-            if keys[pygame.K_c]: player_rotation -= vrotate
+            if self.play_mode:
+                walk_speed = 0.01
+                run_speed = 0.03
+                if show_player == 1:
+                    if keys[pygame.K_LEFT]:
+                        player_rotation += vrotate
+                    if keys[pygame.K_RIGHT]:
+                        player_rotation -= vrotate
+                    if keys[pygame.K_UP]:
+                        player_sprite = 1  # running
+                        angle = 2*math.pi*player_rotation/360
+                        dx, dy = run_speed * math.sin(angle), run_speed * math.cos(angle)
+                        self.view_x += dx
+                        self.view_y += dy
+                    if keys[pygame.K_DOWN]:
+                        player_sprite = 0  # walking
+                        angle = 2*math.pi*player_rotation/360
+                        dx, dy = walk_speed * math.sin(angle), walk_speed * math.cos(angle)
+                        self.view_x -= dx
+                        self.view_y -= dy
+                elif show_player == 2:
+                    # TODO: Handle commands for driving car
+                    # TODO: Support handbrake
+                    # Natural braking of the car.
+                    if car_speed > 0:
+                        car_speed = max(min(car_speed-0.001, car_speed*0.95), 0)
+                    elif car_speed < 0:
+                        car_speed = min(max(car_speed+0.001, car_speed*0.95), 0)
+                    if keys[pygame.K_LEFT]:
+                        player_rotation += vrotate * car_speed * 3
+                    if keys[pygame.K_RIGHT]:
+                        player_rotation -= vrotate * car_speed * 3
+                    if keys[pygame.K_UP]:
+                        # TODO: Cap the car speed, use car's properties for acceleration, max speed, etc...
+                        if car_speed < 0.5:
+                            car_speed += 0.03
+                    if keys[pygame.K_DOWN]:
+                        if car_speed > -0.2:
+                            car_speed -= 0.02
+                    angle = 2*math.pi*player_rotation/360
+                    dx, dy = car_speed * math.sin(angle), car_speed * math.cos(angle)
+                    self.view_x += dx
+                    self.view_y += dy
+                # TODO: Zoom/dezoom depending on the speed
+                # TODO: React based on the tile: slow down on fields, crash on buildings, go up/down on slopes, ...
+            else:
+                move_speed = 1
+                if keys[pygame.K_LEFT]: self.view_x -= move_speed
+                if keys[pygame.K_RIGHT]: self.view_x += move_speed
+                if keys[pygame.K_UP]: self.view_y -= move_speed
+                if keys[pygame.K_DOWN]: self.view_y += move_speed
+                if keys[pygame.K_x]: player_rotation += vrotate
+                if keys[pygame.K_c]: player_rotation -= vrotate
+            if player_rotation > 360:
+                player_rotation -= 360
+            if player_rotation < -360:
+                player_rotation += 360
             # Alternative way to handle the zoom, useful for a more progressive one.
             #if keys[pygame.K_u] and self.base_scale > 0.05: self.base_scale /= 1.01
             #if keys[pygame.K_d] and self.base_scale < 8: self.base_scale *= 1.01
@@ -958,33 +1050,33 @@ class MapRenderer:
                                         scaled = pygame.transform.scale(spr_surf, (max(1, int(spr_surf.get_width()*scale)), max(1, int(spr_surf.get_height()*scale))))
                                         rotated = pygame.transform.rotate(scaled, obj['rotation'] * 90 / 256)
                                         self.screen.blit(rotated, (int(sx - rotated.get_width()/2), int(sy - rotated.get_height()/2)))
+                if show_player > 0 and z == player_height:
+                    sx, sy, scale = self.world_to_screen(self.view_x + 10, self.view_y + 8, player_height)
+                    if show_player == 1:
+                        anim_speed = 2 # works well (at least for walking/running)
+                        anim_idx = ((ticks - anim_tick_start) // (1000 * anim_speed // 20)) % ped_grouping[player_sprite]
+                        spr_num = self.g24.sprite_bases['ped'] + ped_boundaries[player_sprite] + anim_idx
+                        if 'newcarclut_size' in self.g24.header:
+                            base_remap = self.g24.header['newcarclut_size'] // 1024 - 64  # There are 64 remaps for pedestrian and they are at the end of the newcarclut section
+                        else:
+                            base_remap = 125
+                        remap = -1
+                        if player_remap > 0:
+                            remap = base_remap+player_remap-1
+                        spr_surf = self.get_sprite_surface(spr_num, remap)
+                    elif show_player == 2:
+                        car_info = self.g24.car_info[player_sprite]
+                        spr_num = car_info['spr_num'] + self.g24.sprite_bases[self.vehicle_type_const(car_info['vtype'])]
+                        base_remap = player_sprite * 12  # There are 12 remaps per car
+                        remap = -1
+                        if player_remap > 0:
+                            remap = base_remap+player_remap-1
+                        spr_surf = self.get_sprite_surface(spr_num, remap)
+                    if spr_surf:
+                        scaled = pygame.transform.scale(spr_surf, (max(1, int(spr_surf.get_width()*scale)), max(1, int(spr_surf.get_height()*scale))))
+                        rotated = pygame.transform.rotate(scaled, player_rotation)
+                        self.screen.blit(rotated, (int(sx - rotated.get_width()/2), int(sy - rotated.get_height()/2)))
 
-            if show_player > 0:
-                sx, sy, scale = self.world_to_screen(self.view_x + 10, self.view_y + 8, player_height)
-                if show_player == 1:
-                    anim_speed = 2 # works well (at least for walking/running)
-                    anim_idx = ((ticks - anim_tick_start) // (1000 * anim_speed // 20)) % ped_grouping[player_sprite]
-                    spr_num = self.g24.sprite_bases['ped'] + ped_boundaries[player_sprite] + anim_idx
-                    if 'newcarclut_size' in self.g24.header:
-                        base_remap = self.g24.header['newcarclut_size'] // 1024 - 64  # There are 64 remaps for pedestrian and they are at the end of the newcarclut section
-                    else:
-                        base_remap = 125
-                    remap = -1
-                    if player_remap > 0:
-                        remap = base_remap+player_remap-1
-                    spr_surf = self.get_sprite_surface(spr_num, remap)
-                elif show_player == 2:
-                    car_info = self.g24.car_info[player_sprite]
-                    spr_num = car_info['spr_num'] + self.g24.sprite_bases[self.vehicle_type_const(car_info['vtype'])]
-                    base_remap = player_sprite * 12  # There are 12 remaps per car
-                    remap = -1
-                    if player_remap > 0:
-                        remap = base_remap+player_remap-1
-                    spr_surf = self.get_sprite_surface(spr_num, remap)
-                if spr_surf:
-                    scaled = pygame.transform.scale(spr_surf, (max(1, int(spr_surf.get_width()*scale)), max(1, int(spr_surf.get_height()*scale))))
-                    rotated = pygame.transform.rotate(scaled, player_rotation)
-                    self.screen.blit(rotated, (int(sx - rotated.get_width()/2), int(sy - rotated.get_height()/2)))
 
 
             # Code to find where blocks with a particular property are
@@ -1011,7 +1103,9 @@ class MapRenderer:
                         print(f"Remapped car at {x},{y}: {obj} - {info}")
                 break
 
+
             # Display area name
+            # TODO: Understand the logic the game uses to split areas in North/South East/West and Central: is it just splitting the area in 9? Is it more subtle?
             area_name = self.get_area_name(int(self.view_x + 10), int(self.view_y + 8))
             if area_name:
                 img = self.font.render(area_name, True, (255, 255, 0))
@@ -1021,8 +1115,21 @@ class MapRenderer:
                 self.screen.blit(bg, (self.screen_width // 2 - img.get_width() // 2 - 20, self.screen_height - 50 - 20))
                 self.screen.blit(img, (self.screen_width // 2 - img.get_width() // 2, self.screen_height - 50))
 
-            if show_info:
-                text1 = f"X: {self.view_x:.2f} Y: {self.view_y:.2f} - FPS: {fps:.2f} - zoom: {100*self.base_scale}"
+            if show_help:
+                lines = [self.font.render(line, True, (255, 255, 255)) for line in help_text]
+                width = max([l.get_width() for l in lines])
+                height = 40 + sum([l.get_height() for l in lines])
+                bg = pygame.Surface((width, height))
+                bg.fill((0, 0, 0))
+                bg.set_alpha(180)
+                self.screen.blit(bg, (10, 10))
+                dy = 0
+                for l in lines:
+                    self.screen.blit(l, (30, 30+dy))
+                    dy += l.get_height()
+            elif show_info:
+                mode = "Play" if self.play_mode else "Display"
+                text1 = f"Mode: {mode}  X: {self.view_x:.0f} Y: {self.view_y:.0f}  FPS: {fps:.2f}  zoom: {100*self.base_scale}"
                 text2 = f"Remaps: {self.apply_remaps} - Clicked pos (tile): {self.clicked_x}, {self.clicked_y} ({self.clicked_x//64}, {self.clicked_y//64})"
                 text3 = ""
                 if show_player == 1:
