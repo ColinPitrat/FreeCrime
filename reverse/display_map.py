@@ -239,6 +239,8 @@ class G24Parser:
             return (r, g, b, a)
         else: # GRY
             # clut_idx is the remap table index
+            if clut_idx*256 + color_idx >= len(self.remap_tables):
+                return (0, 0, 0, 0)
             palette_idx = self.remap_tables[clut_idx * 256 + color_idx]
             off = palette_idx * 3
             r = self.palette[off] * 4
@@ -429,7 +431,7 @@ class MapRenderer:
         #self.view_x, self.view_y = 155.0, 144.0
         #self.view_x, self.view_y = 70.0, 80.0
         self.base_tile_size = 64
-        self.base_scale = 1.0
+        self.base_scale = 4.0
         self.clicked_x, self.clicked_y = 0, 0
         self.display_tiles_h = int(self.screen_width / 64 + 1)  # Number of tiles to display horizontally
         self.display_tiles_v = int(self.screen_height / 64 + 1)  # Number of tiles to display vertically
@@ -512,7 +514,7 @@ class MapRenderer:
         self.surface_cache[key] = surf
         return surf
 
-    def get_sprite_surface(self, spr_num, remap=-1):
+    def get_sprite_surface(self, spr_num, remap):
         key = (spr_num, remap)
         if key in self.sprite_cache: return self.sprite_cache[key]
         if spr_num >= len(self.g24.sprite_info): return None
@@ -529,8 +531,7 @@ class MapRenderer:
             # Virtual palette index
             virtual_clut = tile_clut_count + info['clut']
             if remap > 0:
-                if remap >= 128: # Car
-                    virtual_clut = tile_clut_count + sprite_clut_count + (remap - 128)
+                virtual_clut = tile_clut_count + sprite_clut_count + remap
 
             if virtual_clut >= len(self.g24.pal_index):
                 clut_idx = 0
@@ -729,9 +730,63 @@ class MapRenderer:
         # the rest of the code uses TL, TR, BR, BL.
         return z+deltas[0], z+deltas[1], z+deltas[3], z+deltas[2]
 
+    def vehicle_type_const(self, vtype):
+        if vtype == 0:
+            return "bus"
+        #if vtype == 1:
+        #    return "front of juggernaut"
+        #if vtype == 2:
+        #    return "back of juggernaut"
+        if vtype == 3:
+            return "bike"
+        if vtype == 4:
+            return "car"
+        if vtype == 8:
+            return "train"
+        if vtype == 9:
+            return "tram"
+        if vtype == 13:
+            return "boat"
+        if vtype == 14:
+            return "tank"
+        return "car"
+
+
     def run(self):
+        ped_legends = [
+            "Walking", "Running", "Exiting vehicle", "Entering vehicle", "???", "Tumble", "Down", "???", "???", "???", "Punching (still)", "???",
+            "???", "???", "???", "Mounting motorcycle", "On motorcycle", "Dismouting motorcycle", "Gun (still)", "Jumping over car", "Driving", "Standing", "Gun (backward)",
+            "Gun (forward)", "???", "Flame-thrower (backward)", "Flame-thrower (forward)", "Flame-thrower (still)", "Machine-gun (backward)", "Machine-gun (forward)", "Machine-gun (still)",
+            "Bazooka (backward)", "Bazooka (forward)", "Bazooka (still)", "Electrocuted", "Swimming?", "Punching (forward)",
+            "Policeman walking", "Policeman running", "Policeman exiting car", "Policeman entering car", "Policeman ???", "Policeman tumbling", "Policman down", "Policeman rising",
+            "Pedestrian drowning", "Policeman ???", "Policeman punching", "Pedestrian ???", "Pedestrian walking 1", "Pedestrian walking 2",
+            "Policeman ???", "Policeman mounting motorcycle", "Policeman on motorcycle", "Policeman dismounting motorcycle", "Policeman shooting", "Policeman jumping over car",
+            "Policeman driving", "Paramedic healing", "Policeman electrocuted", "Policman firing machine gun"
+        ]
+        # TODO: Finalize grouping
+        # 47 & 36 = cops
+        ped_grouping = [
+            8, 8, 8, 10, 4, 4, 2, 1, 4, 1, 6, 2,
+            10, 2, 10, 4, 1, 4, 2, 6, 1, 1, 8,
+            8, 3, 8, 8, 2, 8, 8, 2,
+            8, 8, 2, 5, 4, 8,
+            8, 8, 9, 9, 4, 4, 2, 3,
+            2, 1, 6, 2, 7, 5,
+            10, 4, 1, 4, 2, 6,
+            1, 1, 5, 2
+        ]
+        ped_boundaries = [sum(ped_grouping[:x]) for x in range(len(ped_grouping))]
+        player_sprite = 0
+        player_height = 4
+        player_rotation = 0
+        vrotate = 5 # rotation speed
+        player_remap = 0
+        anim_tick_start = pygame.time.get_ticks()
+
         running = True
         show_info = True
+        # 0 = no, 1 = pedestrian, 2 = car
+        show_player = 0
         start = None
         frames = 0
         fps = 0.0
@@ -755,6 +810,34 @@ class MapRenderer:
                         self.clicked_x, self.clicked_y = int(cx*64), int(cy*64)
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_i: show_info = not show_info
+                    if event.key == pygame.K_s:
+                        show_player = (show_player + 1) % 3
+                        player_sprite = 0
+                        player_remap = 0
+                        anim_tick_start = pygame.time.get_ticks()
+                    if event.key == pygame.K_p:
+                        if player_sprite > 0:
+                            player_sprite -= 1
+                        anim_tick_start = ticks
+                    if event.key == pygame.K_n:
+                        if (show_player == 1 and player_sprite + 1 < len(ped_grouping)) or (show_player == 2 and player_sprite + 1 < len(self.g24.car_info)):
+                            player_sprite += 1
+                        anim_tick_start = ticks
+                    if event.key == pygame.K_h:
+                        if event.mod & pygame.KMOD_SHIFT:
+                            if player_height < 5:
+                                player_height += 1
+                        else:
+                            if player_height > 0:
+                                player_height -= 1
+                    if event.key == pygame.K_m:
+                        if event.mod & pygame.KMOD_SHIFT:
+                            if player_remap > 0:
+                                player_remap -= 1
+                        else:
+                            #if (show_player == 1 and player_remap < 64) or (show_player == 2 and player_remap < 12):
+                            if (show_player == 1 and player_remap < 300) or (show_player == 2 and player_remap < 12):
+                                player_remap += 1
                     if event.key == pygame.K_ESCAPE or event.key == pygame.K_q: running = False
                     if event.key == pygame.K_f:
                         self.fullscreen = not self.fullscreen
@@ -776,6 +859,8 @@ class MapRenderer:
             if keys[pygame.K_RIGHT]: self.view_x += move_speed
             if keys[pygame.K_UP]: self.view_y -= move_speed
             if keys[pygame.K_DOWN]: self.view_y += move_speed
+            if keys[pygame.K_x]: player_rotation += vrotate
+            if keys[pygame.K_c]: player_rotation -= vrotate
             # Alternative way to handle the zoom, useful for a more progressive one.
             #if keys[pygame.K_u] and self.base_scale > 0.05: self.base_scale /= 1.01
             #if keys[pygame.K_d] and self.base_scale < 8: self.base_scale *= 1.01
@@ -841,9 +926,7 @@ class MapRenderer:
                             if min_x < ox < max_x and min_y < oy < max_y:
                                 sx, sy, scale = self.world_to_screen(ox, oy, oz)
                                 spr_num = -1
-                                remap = obj['remap']
                                 if obj['remap'] >= 128:
-                                    remap = obj['remap'] - 128
                                     info = next(car for car in self.g24.car_info if car['model'] == obj['type'])
                                     base_name = 'car'
                                     if info['vtype'] == 0: base_name = 'bus'
@@ -870,13 +953,38 @@ class MapRenderer:
                                     else:
                                         print(f"ERROR: Object not found: {o_idx}")
                                 if spr_num >= 0:
-                                    if not self.apply_remaps:
-                                        remap = 0
-                                    spr_surf = self.get_sprite_surface(spr_num, remap)
+                                    spr_surf = self.get_sprite_surface(spr_num, remap=-1)
                                     if spr_surf:
                                         scaled = pygame.transform.scale(spr_surf, (max(1, int(spr_surf.get_width()*scale)), max(1, int(spr_surf.get_height()*scale))))
                                         rotated = pygame.transform.rotate(scaled, obj['rotation'] * 90 / 256)
                                         self.screen.blit(rotated, (int(sx - rotated.get_width()/2), int(sy - rotated.get_height()/2)))
+
+            if show_player > 0:
+                sx, sy, scale = self.world_to_screen(self.view_x + 10, self.view_y + 8, player_height)
+                if show_player == 1:
+                    anim_speed = 2 # works well (at least for walking/running)
+                    anim_idx = ((ticks - anim_tick_start) // (1000 * anim_speed // 20)) % ped_grouping[player_sprite]
+                    spr_num = self.g24.sprite_bases['ped'] + ped_boundaries[player_sprite] + anim_idx
+                    if 'newcarclut_size' in self.g24.header:
+                        base_remap = self.g24.header['newcarclut_size'] // 1024 - 64  # There are 64 remaps for pedestrian and they are at the end of the newcarclut section
+                    else:
+                        base_remap = 125
+                    remap = -1
+                    if player_remap > 0:
+                        remap = base_remap+player_remap-1
+                    spr_surf = self.get_sprite_surface(spr_num, remap)
+                elif show_player == 2:
+                    car_info = self.g24.car_info[player_sprite]
+                    spr_num = car_info['spr_num'] + self.g24.sprite_bases[self.vehicle_type_const(car_info['vtype'])]
+                    base_remap = player_sprite * 12  # There are 12 remaps per car
+                    remap = -1
+                    if player_remap > 0:
+                        remap = base_remap+player_remap-1
+                    spr_surf = self.get_sprite_surface(spr_num, remap)
+                if spr_surf:
+                    scaled = pygame.transform.scale(spr_surf, (max(1, int(spr_surf.get_width()*scale)), max(1, int(spr_surf.get_height()*scale))))
+                    rotated = pygame.transform.rotate(scaled, player_rotation)
+                    self.screen.blit(rotated, (int(sx - rotated.get_width()/2), int(sy - rotated.get_height()/2)))
 
 
             # Code to find where blocks with a particular property are
@@ -916,16 +1024,27 @@ class MapRenderer:
             if show_info:
                 text1 = f"X: {self.view_x:.2f} Y: {self.view_y:.2f} - FPS: {fps:.2f} - zoom: {100*self.base_scale}"
                 text2 = f"Remaps: {self.apply_remaps} - Clicked pos (tile): {self.clicked_x}, {self.clicked_y} ({self.clicked_x//64}, {self.clicked_y//64})"
+                text3 = ""
+                if show_player == 1:
+                    text3 = f"Player: remap: {player_remap} - height: {player_height} - sprite: {ped_legends[player_sprite]} - rotation: {player_rotation}"
+                if show_player == 2:
+                    text3 = f"Car: remap: {player_remap} - height: {player_height} - rotation: {player_rotation}"
                 img1 = self.font.render(text1, True, (255, 255, 255))
                 img2 = self.font.render(text2, True, (255, 255, 255))
+                img3 = self.font.render(text3, True, (255, 255, 255))
                 width = max(img1.get_width(), img2.get_width()) + 40
                 height = img1.get_height() + img2.get_height() + 50
+                if show_player:
+                    width = max(width, img3.get_width() + 40)
+                    height += img3.get_height() + 10
                 bg = pygame.Surface((width, height))
                 bg.fill((0, 0, 0))
                 bg.set_alpha(180)
                 self.screen.blit(bg, (10, 10))
                 self.screen.blit(img1, (30, 30))
                 self.screen.blit(img2, (30, 30+img1.get_height() + 10))
+                if show_player:
+                    self.screen.blit(img3, (30, 60+img1.get_height() + 20))
             pygame.display.flip()
             self.clock.tick(60)
         pygame.quit()

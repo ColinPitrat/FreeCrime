@@ -286,6 +286,8 @@ typedef struct {
 
 This represents a hue/lightness/saturation remap as used in Photoshop. However, if the hue value is greater than 1000 then the remap is loaded from a file instead of calculating it. The filename is remapXXX.tga, where X is hue-1000.
 
+The `h`, `l` and `s` values are in the ranges [-180, 180], [-100, 100] and [-100, 100] respectively.
+
 ### Sprite Graphics
 
 The sprite graphics part of the file contains the actual graphics for the sprites. It stores each sprite followed by all of the deltas for that sprite ( if any ). The order is the same as the order of `sprite_info_struct` records.
@@ -317,8 +319,8 @@ typedef struct {
 	UInt16 SPR_TRDOORS;
 	UInt16 SPR_BIKE;
 	UInt16 SPR_TRAM;
-	UInt16 SPR_WBUS;
-	UInt16 SPR_WCAR;
+	UInt16 SPR_WBUS;  // Wasted (destroyed) bus
+	UInt16 SPR_WCAR;  // Wasted (destroyed) cars
 	UInt16 SPR_EX;
 	UInt16 SPR_TUMCAR;
 	UInt16 SPR_TUMTRUCK;

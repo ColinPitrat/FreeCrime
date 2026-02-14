@@ -1,5 +1,6 @@
 import argparse
 import collections
+import colorsys
 import inspect
 import struct
 import sys
@@ -388,7 +389,7 @@ class StyleFile:
         blocks = [[] for _ in range(count)]
         for i in range(count//4):  # Rows of blocks (4 blocks per row)
             for j in range(64):  # 64 lines per block
-                for k in range(4):  # Copy the whole line for each of the 4 sprites 
+                for k in range(4):  # Copy the whole line for each of the 4 sprites
                     line_start = offset + i*4*4096 + j*256 + k*64
                     blocks[4*i+k].extend(list(self.data[line_start:line_start+64]))
         return blocks
@@ -400,7 +401,7 @@ class StyleFile:
             raise ValueError("Block count for packing must be a multiple of 4")
         for i in range(count//4):  # Rows of blocks (4 blocks per row)
             for j in range(64):  # 64 lines per block
-                for k in range(4):  # Copy the whole line for each of the 4 sprites 
+                for k in range(4):  # Copy the whole line for each of the 4 sprites
                     data.extend(bytes(blocks[4*i+k][64*j:64*(j+1)]))
         return data
 
@@ -731,6 +732,37 @@ class StyleFile:
         vals = [self.sprite_numbers.get(k, 0) for k in keys]
         return struct.pack('<' + 'H'*21, *vals)
 
+    def get_palette(self, clut_idx):
+        if self.version == 336: # G24
+            if clut_idx >= len(self.clut_data):
+                return [0] * 768
+            return [c for color in self.clut_data[clut_idx] for c in color[:3]]
+        else: # GRY
+            # clut_idx is the remap table index
+            pal = []
+            for i in range(256):
+                palette_idx = self.remap_tables[clut_idx][i]
+                pal.append(self.palette[palette_idx * 3])
+                pal.append(self.palette[palette_idx * 3 + 1])
+                pal.append(self.palette[palette_idx * 3 + 2])
+            return pal
+
+    def apply_hls_remap(self, palette, h_off, l_off, s_off):
+        new_palette = []
+        for i in range(256):
+            r, g, b = palette[i*3]/255.0, palette[i*3+1]/255.0, palette[i*3+2]/255.0
+            h, l, s = colorsys.rgb_to_hls(r, g, b)
+
+            # Hue offset in degrees
+            h = (h + h_off / 360.0) % 1.0
+            # Lightness and Saturation offsets in percentage
+            l = max(0.0, min(1.0, l + l_off / 100.0))
+            s = max(0.0, min(1.0, s + s_off / 100.0))
+
+            nr, ng, nb = colorsys.hls_to_rgb(h, l, s)
+            new_palette.extend([int(nr * 255), int(ng * 255), int(nb * 255)])
+        return new_palette
+
     def save(self, filepath):
         all_blocks_data = self.pack_raw_blocks(self.side_block + self.lid_block + self.aux_block + self.padding_block)
 
@@ -863,12 +895,13 @@ class StyleFile:
         if status_id == 5:
             return 'animation'
         if status_id == 6:
-            return 'weapon?'
+            return 'overlay?'
         if status_id == 9:
             return 'bonus'
         return f"<b>invalid ({status_id})</b>";
 
     def write_html(self, out_dir, filename):
+        used_sprites = set()
         html_filename = filename + '.html'
         title = f'Objects and cars from {filename}'
         with open(os.path.join(out_dir, html_filename), 'w') as f:
@@ -892,7 +925,13 @@ class StyleFile:
                     if obj['status'] == 9:  # Bonus: always 8 sprites
                         nb_sprites = 8
                     for i in range(nb_sprites):
-                        f.write(f'<a href="sprite_{obj['spr_num']+self.offsets['SPR_OBJECT']+i:03}.bmp"><img src="sprite_{obj['spr_num']+self.offsets['SPR_OBJECT']+i:03}.bmp" style="height: 100px;"/></a>')
+                        sprite_num = obj['spr_num']+self.offsets['SPR_OBJECT']+i
+                        f.write(f'<a href="sprite_{sprite_num:03}.bmp"><img src="sprite_{sprite_num:03}.bmp" style="height: 100px;"/></a>')
+                        used_sprites.add(sprite_num)
+                if obj['status'] != 9 and obj['status'] != 5:  # Display the next 12 sprites to see if these are similar
+                    f.write(f'<br/>Next sprites:')
+                    for r in range(1, 13):
+                        f.write(f'<a href="sprite_{sprite_num+r:03}.bmp"><img src="sprite_{sprite_num+r:03}.bmp" style="height: 25px;"/></a>')
                 f.write(f'</span></div>')
                 f.write(f'<hr/>')
 
@@ -903,6 +942,7 @@ class StyleFile:
                 f.write(f'<tr>\n')
                 columns = 4
                 i = 0
+                # TODO: extract car name from english.fxt (it has the index `car<model>`)
                 for name, prop in {
                     'Width': 'width', 'Height': 'height', 'Depth': 'depth', 'Weight': 'weight',
                     'Type': 'vtype', 'Model': 'model',
@@ -928,22 +968,83 @@ class StyleFile:
                 f.write(f'<span class="sprites">')
                 sprite_num = car['spr_num']+self.offsets[self.vehicle_type_const(car['vtype'])]
                 f.write(f'<a href="sprite_{sprite_num:03}.bmp"><img src="sprite_{sprite_num:03}.bmp" style="height: 200px;"/></a>')
+                used_sprites.add(sprite_num)
+
+                f.write(f'<br/>Remaps: ')
+                for r in range(12):
+                    filename = f"car_{c:03}_remap_{r:02}.bmp"
+                    filepath = os.path.join(out_dir, filename)
+                    if os.path.exists(filepath):
+                        f.write(f'<a href="{filename}"><img src="{filename}" style="height: 50px;"/></a>')
+
                 f.write(f'</span></div>')
                 f.write(f'<hr/>')
-            # TODO display remaps
-            if False:
-                    for r in car['remap24']:
-                        data.extend(struct.pack('<3h', *r))
 
-                    data.extend(struct.pack('<12B', *car['remap8']))
-                    data.extend(struct.pack('<4H', *car['value']))
-                    data.extend(struct.pack('<2b', car['cx'], car['cy']))
-                    data.extend(struct.pack('<3i', car['moment'], car['rbp_mass'], car['g1_thrust']))
-                    data.extend(struct.pack('<2i', car['tyre_adhesion_x'], car['tyre_adhesion_y']))
+            f.write(f'<h2>Pedestrians</h2>\n')
+            legend_idx = 0
+            ped_legends = [
+                "Walking", "Running", "Exiting vehicle", "Entering vehicle", "???", "Tumble", "Down", "???", "???", "???", "Punching (still)", "???",
+                "???", "???", "???", "Mounting motorcycle", "On motorcycle", "Dismouting motorcycle", "Gun (still)", "Jumping over car", "Driving", "Standing", "Gun (backward)",
+                "Gun (forward)", "???", "Flame-thrower (backward)", "Flame-thrower (forward)", "Flame-thrower (still)", "Machine-gun (backward)", "Machine-gun (forward)", "Machine-gun (still)",
+                "Bazooka (backward)", "Bazooka (forward)", "Bazooka (still)", "Electrocuted", "Swimming?", "Punching (forward)",
+                "Policeman walking", "Policeman running", "Policeman exiting car", "Policeman entering car", "Policeman ???", "Policeman tumbling", "Policman down", "Policeman rising",
+                "Pedestrian drowning", "Policeman ???", "Policeman punching", "Pedestrian ???", "Pedestrian walking 1", "Pedestrian walking 2",
+                "Policeman ???", "Policeman mounting motorcycle", "Policeman on motorcycle", "Policeman dismounting motorcycle", "Policeman shooting", "Policeman jumping over car",
+                "Policeman driving", "Policeman standing", "Policeman electrocuted", "Policman firing machine gun"
+            ]
+            # TODO: Finalize grouping
+            # 47 & 36 = cops
+            ped_grouping = [
+                8, 8, 8, 10, 4, 4, 2, 1, 4, 1, 6, 2,
+                10, 2, 10, 4, 1, 4, 2, 6, 1, 1, 8,
+                8, 3, 8, 8, 2, 8, 8, 2,
+                8, 8, 2, 5, 4, 8,
+                8, 8, 9, 9, 4, 4, 2, 3,
+                2, 1, 6, 2, 7, 5,
+                10, 4, 1, 4, 2, 6,
+                1, 1, 5, 2
+            ]
+            ped_boundaries = [sum(ped_grouping[:x]) for x in range(len(ped_grouping))]
+            f.write(f'<div class="object">\n')
+            for idx, sprite in enumerate(self.sprites[self.offsets['SPR_PED']:self.offsets['SPR_SPEEDO']]):
+                if idx in ped_boundaries:
+                    if idx != 0:
+                        f.write(f'<hr/>')
+                    if legend_idx < len(ped_legends):
+                        f.write(f'<h3>{ped_legends[legend_idx]}</h3>')
+                    legend_idx += 1
+                sprite_num = self.offsets['SPR_PED'] + idx
+                height = 10*sprite['h']
+                f.write(f'<a href="sprite_{sprite_num:03}.bmp"><img src="sprite_{sprite_num:03}.bmp" style="height: {height}px; padding-left: 1em;"/></a>')
+                used_sprites.add(sprite_num)
+            f.write(f'</div>')
 
-                    data.extend(struct.pack('<h', len(car['doors'])))
-                    for d in car['doors']:
-                        data.extend(struct.pack('<4h', d['rpx'], d['rpy'], d['object'], d['delta']))
+            f.write(f'<h2>Explosions</h2>\n')
+            f.write(f'<div class="object">\n')
+            for idx, sprite in enumerate(self.sprites[self.offsets['SPR_EX']:]):
+                sprite_num = self.offsets['SPR_EX'] + idx
+                f.write(f'<a href="sprite_{sprite_num:03}.bmp"><img src="sprite_{sprite_num:03}.bmp" style="height: 200px;"/></a>')
+                used_sprites.add(sprite_num)
+                if idx % 12 == 11:
+                    f.write(f'<hr/>')
+            f.write(f'</div>')
+
+            f.write(f'<h2>Other sprites</h2>\n')
+            for sprite_num, sprite in enumerate(self.sprites):
+                if sprite_num not in used_sprites:
+                    f.write(f'<h3>Sprite #{sprite_num}</h3>\n')
+                    f.write(f'<div class="object"><span class="infos"><table>\n')
+                    f.write(f'<tr>\n')
+                    for name, prop in {'Width': 'w', 'Height': 'h', 'Clut': 'clut'}.items():
+                        value = sprite[prop]
+                        f.write(f'<th>{name}: </th><td>{value}</td>')
+                    f.write(f'<th># deltas: </th><td>{len(sprite['deltas'])}</td>')
+                    f.write(f'</tr>\n')
+                    f.write(f'</table></span>\n')
+                    f.write(f'<span class="sprites">')
+                    f.write(f'<a href="sprite_{sprite_num:03}.bmp"><img src="sprite_{sprite_num:03}.bmp" style="height: 200px;"/></a>')
+                    f.write(f'</span></div>')
+                    f.write(f'<hr/>')
 
             f.write('</body>\n</html>\n')
 
@@ -994,7 +1095,6 @@ def main():
                 idx += 1
 
         # Export Sprites
-        # TODO: also export remaps
         if isinstance(style_file.sprites, list) and len(style_file.sprites) > 0 and 'error' not in style_file.sprites[0]:
             for i, spr in enumerate(style_file.sprites):
                 w, h = spr['w'], spr['h']
@@ -1015,6 +1115,37 @@ def main():
                     dpath = os.path.join(out_dir, dname)
                     write_bmp(dpath, w, h, d_pixels, palette)
 
+        # Export Car Remaps
+        for c, car in enumerate(style_file.car_info):
+            sprite_num = car['spr_num'] + style_file.offsets[style_file.vehicle_type_const(car['vtype'])]
+            spr = style_file.sprites[sprite_num]
+            w, h = spr['w'], spr['h']
+            if w == 0 or h == 0: continue
+
+            # Get base palette
+            if style_file.version == 336: # G24
+                pal_idx = spr['clut'] + style_file.header['tileclut_size'] // 1024
+                clut_idx = style_file.palette_index[pal_idx]
+                base_palette = style_file.get_palette(clut_idx)
+            else: # GRY
+                base_palette = style_file.get_palette(0)
+
+            for r_idx in range(12):
+                if style_file.version == 336: # G24
+                    h_off, l_off, s_off = car['remap24'][r_idx]
+                    if (h_off, l_off, s_off) == (0, 0, 0):
+                        continue
+                    remap_palette = style_file.apply_hls_remap(base_palette, h_off, l_off, s_off)
+                else: # GRY
+                    remap_val = car['remap8'][r_idx]
+                    if remap_val == 0:
+                        continue
+                    remap_palette = style_file.get_palette(remap_val)
+
+                rname = f"car_{c:03}_remap_{r_idx:02}.bmp"
+                rpath = os.path.join(out_dir, rname)
+                write_bmp(rpath, w, h, spr['pixels'], remap_palette)
+
         # Export Sprites pages
         for i, page in enumerate(style_file.sprites_pages):
                 fname = f"sprites_page_{i:03d}.bmp"
@@ -1027,6 +1158,19 @@ def main():
         style_file.write_html(out_dir, os.path.basename(args.input_file))
 
         print(f"Exported images to {out_dir}")
+
+    if True:
+        max_remap8 = 0
+        remaps24 = set()
+        for car in style_file.car_info:
+            for remap in car['remap24']:
+                remaps24.add(tuple(remap))
+            for remap in car['remap8']:
+                if remap > max_remap8:
+                    max_remap8 = remap
+        print(f"Max remap8={max_remap8}, # remap24={len(remaps24)}")
+        if 'newcarclut_size' in style_file.header:
+            print(f"Total car+ped remaps:{style_file.header['newcarclut_size']//1024}")
 
     if args.print:
         for p in args.print:

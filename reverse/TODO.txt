@@ -3,6 +3,15 @@ display_map.py:
  - Car remap doesn't work? (but no example!)
  - Slopes lids often have a black border
  - Sides of slopes are not properly displayed (they should be cut from the texture, not the texture fully mapped).
+ - Start using deltas (opening doors, combining with damages, ...)
 
 modify_cmp.py:
  - Support slopes properly
+
+Sprites:
+ - Different players (Bubba, Divine, Katie, Kivlov, Mikki, Travis, Troy, Ulrika) have different remaps of the player sprite
+   The remaps used in 8 bits are: Ulrika: 149, Katie: 153, Mikki: 157, Divine: 161, Bubba: 165, Troy: 169, Kivlov: 173
+   Travis has no remap (or 128, or 188, or many others ...).
+ - Pedestrian use the same sprites as the player, with remaps: they can walk, run, jump over cars, be knocked down, ...
+ - Yet there are additional pedestrian sprites on top of player and policemen, unclear what they are for. They have very limited movements: drowning, walking and climibing?
+ - In G24, there seem to be 64 pedestrian remaps which are at the end of "newcarclut".
