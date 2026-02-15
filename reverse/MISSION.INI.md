@@ -71,9 +71,9 @@ I think RESET only cleans objects created by the mission itself, and therefore i
 
 For example:
 ```
-156 1 (0,0,0) MISSION_COUNTER 4 0 
+156 1 (0,0,0) MISSION_COUNTER 4 0
 (...)
-9000 (0,0,0) MISSION_COUNTER 16 0 
+9000 (0,0,0) MISSION_COUNTER 16 0
 ```
 
 Both mission counters should be permanent and not be cleaned by a RESET command.
@@ -81,10 +81,10 @@ Both mission counters should be permanent and not be cleaned by a RESET command.
 ### Commands
 Example:
 ```
-9 SURVIVE 0 0 0 5 0 
-10 ARROW 137 0 0 0 0 
-11 MOBILE_BRIEF 0 0 0 0 1001 
-12 STARTUP 303 30000 30000 0 0 
+9 SURVIVE 0 0 0 5 0
+10 ARROW 137 0 0 0 0
+11 MOBILE_BRIEF 0 0 0 0 1001
+12 STARTUP 303 30000 30000 0 0
 ```
 
 ### Startup commands
@@ -209,7 +209,7 @@ Position the player at its start position. For a multiplayer mission, there can 
 
 Example:
 ```
-293 1 (106,119,4) PARKED 31 0 
+293 1 (106,119,4) PARKED 31 0
 294 1 (105,119,4) PLAYER 293 256
 ```
 Here, object 294 is the player. It is positioned at (105,119,4).
@@ -217,6 +217,32 @@ The first parameter, 293, seems to refer to the `PARKED` object before, unclear 
 The second parameter is the orientation of the player. It goes from 0 to 1023. 0 means pointing south, 256 is east, etc....
 
 ### `POWERUP`
+Creates a powerup (weapon, life, multiplier, ...).
+
+Example:
+```
+271 (70,85,4) POWERUP 2 500
+```
+Creates object 271 at the position (70,85,4). This is of type 2 (machine gun)
+and this is a kill frenzy that lasts 15 seconds (500 frames). This particular
+kill frenzy requires 1000 points, but unsure how the number of points is
+configured (if it is).
+
+The first parameter is the power-up type (see [powerups.md](powerups.md) for the
+full list). 1=Pistol, 2=Machine gun, 3=Rocket launcher, 4=Flame thrower,
+6=Speedup, 9=Cop bribe, 10=Armour, 11=Multiplier, 12=Get out of jail, 13=Life
+
+The second parameter is the number of ammunitions (for weapons). If 0, the
+default amount is provided.
+
+TODO: Understand how the number of points required by the kill frenzy is
+configured.
+
+TODO: Verify if the amount can be changed for non-weapons: speedup (duration?),
+armour (more hits?), multiplier (more than 1?), get out of jail (unlikely),
+extra life (more than 1?)
+
+
 ### `SECRET_MISSION_COUNTER`
 ### `SPECIFIC_BARR`
 ### `SPECIFIC_DOOR`
@@ -301,11 +327,11 @@ The next two parameters seem to be an instruction to loop to.
 For example:
 ```
 430 IS_PED_IN_CAR 294 430 0 -1 0
-432 SURVIVE 0 0 0 25 0 
-433 MOBILE_BRIEF 0 0 0 0 1016 
-434 ARROWCAR 189 0 0 0 0 
-436 STEAL 189 0 -1 0 0 
-437 SURVIVE 0 0 0 20 0 
+432 SURVIVE 0 0 0 25 0
+433 MOBILE_BRIEF 0 0 0 0 1016
+434 ARROWCAR 189 0 0 0 0
+436 STEAL 189 0 -1 0 0
+437 SURVIVE 0 0 0 20 0
 438 ARROW 191 430 430 0 0
 ```
 
@@ -430,7 +456,7 @@ Example:
 Displays the message 1426 (which usually contains the number of points and
 sometimes the duration), independently of the actual parameters of the frenzy.
 
-The first parameter is always 0 in the game's files. 
+The first parameter is always 0 in the game's files.
 The second parameter is a command to jump to next. If 0, it is simply the next
 command in the script.
 The third parameter is either 0 or -1 in the game's files but its effect is
@@ -563,7 +589,7 @@ The second parameter can be 0 or -1. When not, it seems to be an action number w
 
 Displays the message `KILL FRENZY!` (2503) but it seems to refer to action 32284 which is:
 ```
-32284 DECCOUNT 23330 32213 32213 0 0 
+32284 DECCOUNT 23330 32213 32213 0 0
 ```
 and 23330 is:
 ```

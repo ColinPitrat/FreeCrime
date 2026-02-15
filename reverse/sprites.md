@@ -8,9 +8,12 @@ Starting at `SPR_OBJECT` (83), some objects have 13 sprites in total:
  - 8 for the animation when bumped into by a car
  - 4 for the animation of sinking into water
 
+261-264: Tank missile
+265: Look like a bunch of rocks. Tank turret very damaged/explosed? (TODO: confirm)
 266: Tank turret
 267: Tank cannon
-268: Tank turret (damaged)
+268: Tank turret damaged
+269: Tank cannon damaged? (TODO: confirm)
 
 Starting at `SPR_PED` (645):
 645-652: Player walking backward

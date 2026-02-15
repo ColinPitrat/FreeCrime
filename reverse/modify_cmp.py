@@ -320,6 +320,7 @@ def main():
     parser.add_argument('--set', '-s', action='append', help='Set field value, e.g. location_data.police_station[0].x=100')
     parser.add_argument('--print', '-p', action='append', help='Print field value, e.g. header.style_number')
     parser.add_argument('--print_slopes', '-P', action='store_true', help='Print a map of the slopes')
+    parser.add_argument('--generate', '-g', help='Generate a test map (with only roads)')
 
     args = parser.parse_args()
 
@@ -382,6 +383,30 @@ def main():
         output_path = args.output if args.output else args.input_file
         cmp_file.save(output_path)
         print(f"Saved to {output_path}")
+
+    # Very specific logic: generate a test map copying the same column
+    # everywhere from the provided coordinates.
+    # Example for NYC.CMP, can be used with --generate=32,137 on the range
+    # 100-120 to generate a huge "road area" around the player starting
+    # position.
+    if args.generate:
+        coords = args.generate.split(',')
+        if len(coords) != 2:
+            print(f"Error parsing coordinates: {args.generate}")
+            sys.exit(1)
+        x, y = int(coords[0]), int(coords[1])
+        if not args.output:
+            print(f"Error: --generate must be used with --output. I don't want to fully overwrite the real map!")
+            sys.exit(1)
+        to_copy = cmp_file.base[y][x]
+        #for i in range(256):
+        for i in range(100, 120):
+        #    for j in range(256):
+            for j in range(100, 120):
+                cmp_file.base[i][j] = to_copy
+        cmp_file.save(args.output)
+        print(f"Saved to {args.output}")
+
 
 if __name__ == '__main__':
     main()
