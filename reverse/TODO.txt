@@ -15,3 +15,39 @@ Sprites:
  - Pedestrian use the same sprites as the player, with remaps: they can walk, run, jump over cars, be knocked down, ...
  - Yet there are additional pedestrian sprites on top of player and policemen, unclear what they are for. They have very limited movements: drowning, walking and climibing?
  - In G24, there seem to be 64 pedestrian remaps which are at the end of "newcarclut".
+
+MISSION.INI:
+ - Test unused keywords (not present in game's resources but present in game executable):
+   - ARE_BOTH_ONSCREEN
+   - CAR
+   - CARBOMB
+   - CHECK_PEDBACK
+   - CLOCK
+   - CLOCK_START
+   - CLOCK_STOP
+   - DELAY_CRIME
+   - DRIVEON
+   - DRIVER
+   - DRIVER_PARK
+   - DUMMY_OFF
+   - ESCORT
+   - ESCORTED
+   - FUTUREDROP
+   - GARAGE_SEND
+   - INIT
+   - IS_A_TRAIN_WRECKED
+   - LOCATE_STOPPED
+   - MODEL
+   - MODEL_DOOR
+   - MODEL_FUTURE
+   - MY_MODEL
+   - ONETRIGGER
+   - SET_COLLIDE
+   - SETUP_SPEED
+   - SPECIFIC_DOOR_BOMB
+   - START_CHOPPER
+   - START_HIRED_ESC
+   - STOPPED
+   - THROW_TO_POINT
+   - WAIT_FOR_PLAYER
+   - WRECK_CURR_TRAIN

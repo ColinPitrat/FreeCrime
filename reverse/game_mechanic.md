@@ -7,7 +7,7 @@ to enter a car which is in any of the tile with a number strictly lower than 3:
 3 3 3 3 3 3 3
 3 2 2 2 2 2 3
 3 2 1 1 1 2 3
-3 2 1 0 1 2 3 
+3 2 1 0 1 2 3
 3 2 1 1 1 2 3
 3 2 2 2 2 2 3
 3 3 3 3 3 3 3

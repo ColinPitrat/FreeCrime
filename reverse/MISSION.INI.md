@@ -200,6 +200,11 @@ The second parameter should logically be an orientation (rotation) of the object
 ### `MOVING_TRIG`
 ### `MPHONES`
 ### `PARKED`
+Creates  a parked car.
+
+First parameter is the car model (TODO: Create car_models.md describing car models depending on the level (if it does depend on the level), maybe including London extension pack).
+Second parameter is the angle of the car.
+
 ### `PARKED_PIXELS`
 ### `PED`
 ### `PEDCAR_TRIG`
@@ -213,7 +218,7 @@ Example:
 294 1 (105,119,4) PLAYER 293 256
 ```
 Here, object 294 is the player. It is positioned at (105,119,4).
-The first parameter, 293, seems to refer to the `PARKED` object before, unclear what's its purpose.
+The first parameter, 293, refers a `PARKED` object before. This parked object is a car that the player owns (entering it doesn't count as stealing).
 The second parameter is the orientation of the player. It goes from 0 to 1023. 0 means pointing south, 256 is east, etc....
 
 ### `POWERUP`
@@ -247,6 +252,16 @@ extra life (more than 1?)
 ### `SPECIFIC_BARR`
 ### `SPECIFIC_DOOR`
 ### `SPRAY`
+Creates a spray shop for a given color.
+
+Example:
+```
+160 1 (44,139,3) SPRAY 1 0
+```
+
+The color can range from 1 to 6.
+The second parameter doesn't seem to be used and is always 0 in the game's resources.
+
 ### `TARGET`
 ### `TARGET_SCORE`
 ### `TELEPHONE`
@@ -257,6 +272,7 @@ Example:
 0 1 (108,108,4) TELEPHONE 0 768
 ```
 Which creates a telephone with ID `0` at position (108, 108, 4) pointing toward south (768).
+The first parameter doesn't seem to be used and is always 0 in the game's resources.
 The second value is always 1 and the fifth value is always 0. Changing these values doesn't seem to have any effect.
 
 ### `TRIGGER`
@@ -267,8 +283,7 @@ Example:
 136 (60,246,4) TRIGGER 2635 0
 ```
 Creates a trigger with id `136` at position `(60,246,4)` which triggers command 2635 when reached.
-
-The role of the last number is unclear, it can range from 0 to 8.
+The second parameter is the range of the trigger ([Moore neighborhood](https://en.wikipedia.org/wiki/Moore_neighborhood)). A range of 0 checks only the current block.
 
 ## All keywords
 
