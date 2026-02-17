@@ -17,6 +17,7 @@
  - [all_supported_keywords.txt](all_supported_keywords.txt) - All the supported MISSION.INI keywords, extracted from the executable with [extract_exe_strings.py](extract_exe_strings.py)
  - [all_used_keywords.txt](all_used_keywords.txt) - All the keywords actually used in MISSION.INI (combining both the original game and the London extension pack).
  - [game_mechanic.md](game_mechanic.md) - Some findings about the game mechanic.
+ - [sounds.md](sounds.md) - Which sound is which
  - [sprites.md](sprites.md) - Some findings about sprites.
 
 ## Reverse engineering tools
