@@ -39,3 +39,18 @@ variable amount of time. This is configured in MISSION.INI by having a TRIGGER
 on the same coordinates that checks if the power up was taken
 (`IS_POWERUP_DONE`), waits for the player to survive a given time (SURVIVE) and
 then re-enable the powerup.
+
+## Traffic lights
+
+Traffic lights are drawn without taking the perspective into account. They are
+just a sprite displayed high above the middle of the street. The side showing
+the light is always visible even when it doesn't make sense from a perspective
+point of view.
+
+Traffic lights go through a sequence: green - amber - red - blinking amber
+
+When a traffic light is not green, cars stop on the tile which is before it
+(where before means on the side of the traffic light where the light is).
+Interestingly, the cars stop no matter the direction in which they are going.
+So some cars will stop after exiting the junction if the traffic light for the
+other direction is not green (typically cars turning on a T junction).
