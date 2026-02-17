@@ -2,35 +2,44 @@ This file lists some interesting sprites identified.
 
 ## NYC - STYLE001.G24
 
-TODO: Confirm these 13 sprites:
+TODO: Understand these 13 sprites properly:
+
 Starting at `SPR_OBJECT` (83), some objects have 13 sprites in total:
  - 1 at rest
  - 8 for the animation when bumped into by a car
  - 4 for the animation of sinking into water
 
-261-264: Tank missile
-265: Look like a bunch of rocks. Tank turret very damaged/explosed? (TODO: confirm)
-266: Tank turret
-267: Tank cannon
-268: Tank turret damaged
-269: Tank cannon damaged? (TODO: confirm)
+TODO: These sprite numbers vary for a different style file. Find the proper 
+object number associated and verify that it is fixed across all style files.
+
+ - 261-264: Tank missile / Rocket launcher "bullet"
+ - 265: Look like a bunch of rocks. Tank turret very damaged/explosed? (TODO: confirm)
+ - 266: Tank turret
+ - 267: Tank cannon
+ - 268: Tank turret damaged
+ - 269: Tank cannon damaged? (TODO: confirm)
+
+ - 475: Bullet (Pistol & Machine gun)
+ - 476-486: Flame thrower "bullet"
 
 Starting at `SPR_PED` (645):
-645-652: Player walking backward
-653-660: Player running (going forward)
-661: Player driving
-662-669: Player exiting vehicle?
-670-677: Player entering vehicle? (but looks the same as exiting, just backward)
-678: Player driving (again?)
-734-735: Player shooting with a gun
-744-751: Player shooting with a gun
-752-759: Player walking and shooting with a gun
+
+- 645-652: Player walking backward
+- 653-660: Player running (going forward)
+- 661: Player driving
+- 662-669: Player exiting vehicle?
+- 670-677: Player entering vehicle? (but looks the same as exiting, just backward)
+- 678: Player driving (again?)
+- 734-735: Player shooting with a gun
+- 744-751: Player shooting with a gun
+- 752-759: Player walking and shooting with a gun
 
 Vehicles of type motorcycle have 13 sprites:
-953-965: bike
-966-978: superbike
 
-986-1033: 4 sets of 12 sprites for the explosions for the four directions (in order: NW, NE, SW and SE)
+- 953-965: bike
+- 966-978: superbike
+
+- 986-1033: 4 sets of 12 sprites for the explosions for the four directions (in order: NW, NE, SW and SE)
 
 ## remaps
 
