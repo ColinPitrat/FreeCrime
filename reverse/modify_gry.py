@@ -537,6 +537,9 @@ class StyleFile:
                 curr += 8
                 doors.append({'rpx': d_vals[0], 'rpy': d_vals[1], 'object': d_vals[2], 'delta': d_vals[3]})
 
+            def convert_float(i32):
+                return i32 / 65536
+
             car = {
                 'width': dims[0], 'height': dims[1], 'depth': dims[2],
                 'spr_num': spr_num, 'weight': weight,
@@ -547,11 +550,11 @@ class StyleFile:
                 'vtype': b_vals[0], 'model': b_vals[1], 'turning': b_vals[2], 'damageable': b_vals[3],
                 'value': value,
                 'cx': cxy[0], 'cy': cxy[1],
-                'moment': m_vals[0], 'rbp_mass': m_vals[1], 'g1_thrust': m_vals[2],
-                'tyre_adhesion_x': tyre[0], 'tyre_adhesion_y': tyre[1],
-                'handbrake_friction': brakes[0], 'footbrake_friction': brakes[1], 'front_brake_bias': brakes[2],
+                'moment': m_vals[0], 'rbp_mass': convert_float(m_vals[1]), 'g1_thrust': convert_float(m_vals[2]),
+                'tyre_adhesion_x': convert_float(tyre[0]), 'tyre_adhesion_y': convert_float(tyre[1]),
+                'handbrake_friction': convert_float(brakes[0]), 'footbrake_friction': convert_float(brakes[1]), 'front_brake_bias': convert_float(brakes[2]),
                 'turn_ratio': offsets[0], 'drive_wheel_offset': offsets[1], 'steering_wheel_offset': offsets[2],
-                'back_end_slide_value': slides[0], 'handbrake_slide_value': slides[1],
+                'back_end_slide_value': convert_float(slides[0]), 'handbrake_slide_value': convert_float(slides[1]),
                 'convertible': flags[0], 'engine': flags[1], 'radio': flags[2],
                 'horn': flags[3], 'sound_function': flags[4], 'fast_change_flag': flags[5],
                 'doors': doors
@@ -957,6 +960,11 @@ class StyleFile:
                 columns = 4
                 i = 0
                 # TODO: extract car name from english.fxt (it has the index `car<model>`)
+                # TODO: identify how to find the corresponding engine sound
+                # TODO: Center of mass (cx, cy)
+                # TODO: Tyre adhesion (tyre_adhesion_x, tyre_adhesion_y)
+                # TODO: Doors (doors: list of `rpx`, `rpy`, `object` and `delta`)
+                car['num_doors'] = len(car['doors'])
                 for name, prop in {
                     'Width': 'width', 'Height': 'height', 'Depth': 'depth', 'Weight': 'weight',
                     'Type': 'vtype', 'Model': 'model',
@@ -964,16 +972,22 @@ class StyleFile:
                     'Acceleration': 'acceleration', 'Braking': 'braking',
                     'Grip': 'grip', 'Handling': 'handling', 'Turning': 'turning',
                     'Damageable': 'damageable', 'Convertible': 'convertible',
+                    'Resell values': 'value',
                     'Engine': 'engine', 'Radio': 'radio',
+                    'Mass': 'rbp_mass', 'Moment': 'moment',
                     'Turn ratio': 'turn_ratio', 'Drive wheel offset': 'drive_wheel_offset', 'Steering wheel offset': 'steering_wheel_offset',
                     'Back-end slide': 'back_end_slide_value', 'Handbrake slide': 'handbrake_slide_value',
                     'Handbrake friction': 'handbrake_friction', 'Footbrake friction': 'footbrake_friction', 'Front brake bias': 'front_brake_bias',
-                    'Horn': 'horn', 'Sound function': 'sound_function', 'Fast change flag': 'fast_change_flag',
+                    'Horn': 'horn', 'Engine sound': 'sound_function', 'Fast change flag': 'fast_change_flag',
+                    'Doors': 'num_doors',
                 }.items():
                     value = car[prop]
                     if prop == 'vtype':
                         value = self.vehicle_type_html(car[prop])
-                    f.write(f'<th>{name}: </th><td>{value}</td>')
+                    if isinstance(value, float):
+                        f.write(f'<th>{name}: </th><td>{value:.2f}</td>')
+                    else:
+                        f.write(f'<th>{name}: </th><td>{value}</td>')
                     i+=1
                     if i % columns == 0:
                         f.write(f'</tr>\n<tr>')
@@ -1185,7 +1199,7 @@ def main():
 
         print(f"Exported images to {out_dir}")
 
-    if True:
+    if False:
         max_remap8 = 0
         remaps24 = set()
         for car in style_file.car_info:
