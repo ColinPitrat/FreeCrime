@@ -5,7 +5,7 @@ import struct
 import os
 import wave
 
-def extract_sounds(sdt_path, output_dir, channels, bits):
+def extract_sounds(sdt_path, output_dir, channels, bits, force_frequency):
     """
     Extracts sounds from a .RAW file using a .SDT index file.
     """
@@ -29,6 +29,8 @@ def extract_sounds(sdt_path, output_dir, channels, bits):
 
                 # Assuming Little Endian (<) unsigned int (I)
                 offset, size, frequency = struct.unpack('<III', entry_data)
+                if force_frequency:
+                    frequency = force_frequency
 
                 # Read raw audio data
                 raw_file.seek(offset)
@@ -46,7 +48,7 @@ def extract_sounds(sdt_path, output_dir, channels, bits):
                         wav_file.setsampwidth(bits // 8)
                         wav_file.setframerate(frequency)
                         wav_file.writeframes(audio_data)
-                    print(f"Extracted: {out_filename} (Freq: {frequency}Hz, Size: {size})")
+                    print(f"Extracted: {out_filename} (Freq: {frequency}Hz, Size: {size}, Start: {offset}, End: {offset+size})")
                 except Exception as e:
                     print(f"Error writing {out_filename}: {e}")
 
@@ -63,7 +65,8 @@ if __name__ == "__main__":
     parser.add_argument("--out", "-o", default="extracted_sounds", help="Output directory")
     parser.add_argument("--channels", "-c", type=int, choices=[1, 2], default=1, help="Number of channels (1=Mono, 2=Stereo)")
     parser.add_argument("--bits", "-b", type=int, choices=[8, 16], default=8, help="Bit depth (8 or 16)")
+    parser.add_argument("--frequency", "-f", type=int, default=0, help="Force frequency")
 
     args = parser.parse_args()
 
-    extract_sounds(args.sdt_file, args.out, args.channels, args.bits)
+    extract_sounds(args.sdt_file, args.out, args.channels, args.bits, args.frequency)
