@@ -54,3 +54,37 @@ When a traffic light is not green, cars stop on the tile which is before it
 Interestingly, the cars stop no matter the direction in which they are going.
 So some cars will stop after exiting the junction if the traffic light for the
 other direction is not green (typically cars turning on a T junction).
+
+## Area names
+
+Navigation data from the CMP file contains a list of areas defined as rectangles
+on the map. For example, "Nixon Island", "Hackenslash", etc...
+
+These areas are subdivided in 9 rectangles, presumably splitting both the
+rectangle width and height in 3 equal parts.
+
+Both the sound files (SDT/RAW) and the text files (FXT) contain prefixes for the
+subdivisions (North, South, East, West, Central, Southeast, Southwest, Northeast
+and Northwest). In text files, these are strings with ids `n`, `s`, `e`, `w`,
+`c`, `se,` `sw`, `ne` and `nw`. In sound files, there are only 5 sounds for
+"North", "East", "South", "West" and "Central" which can be composed as needed.
+
+The area names have a sound number defined in the navigation data in the CMP
+file: the `sample` field. It's an offset in the list of files where the first
+sample (offset 1) is the 100th sound. The exception is sample 0 which
+corresponds to the 120th sound.
+
+In text files, the string with the name of the area is `00xarea0yy` where x is
+the city (1=Liberty City/NYC, 2=San Andreas/SANB, 3=Vice City/MIAMI).
+
+For example, the first three areas in Liberty City are:
+```
+[001area000]Nixon Island
+[001area001]Liberty City
+[001area002]Hackenslash
+```
+
+To be noted that areas can overlap though in practice, the only case where it
+happens is for Liberty City and Vice City for which there are areas defined for
+the whole city. It's not clear what these areas are used for nor why the same is
+not done for San Andreas.
