@@ -89,6 +89,14 @@ The slope type is:
 Using `[z][y][x]` order, position `[0][0][0]` is the highest left top corner of the world.
 `[5][n][n]` is the lowest level. Note that at this level only lids are visible.
 
+Non-zero values observed for traffic lights are only:
+
+ - 1 for regular traffic lights (on streets)
+ - 4 and 5 for trains, indicating places where they should slow down (turns)
+ - 6 and 7 for trains, indicating places where they should stop & open their doors?
+
+TODO: dig deeper into traffic lights mechanics.
+
 ## Map data
 
 ### `base`, `column` and `block`
