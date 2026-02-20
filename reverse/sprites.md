@@ -12,12 +12,58 @@ Starting at `SPR_OBJECT` (83), some objects have 13 sprites in total:
 TODO: These sprite numbers vary for a different style file. Find the proper 
 object number associated and verify that it is fixed across all style files.
 
+There are 2 sets of sprites for the same UI elements, the first set being with
+lower resolution. The second set has one more sprite because the area name is in
+one sprite for the low-resolution set whereas it's in two sprites in the
+high-resolution set.
+
+In what follows, sprite numbers for these elements are of the form:
+`<low> & <high>`.
+
+UI elements:
+ - 0 & 24: Yellow arrow
+ - 1 & 25-26: Area name box
+ - 2 & 27: Car name box
+ - 3 & 28: Pager
+ - 4 & 29: Blinking light of the pager (lit on)
+
+Selected weapon icons:
+ - 5 & 30: Pistol
+ - 6 & 31: Machine gun
+ - 7 & 32: Rocket launcher icon
+ - 8 & 33: Flame thrower
+ - 9 & 34: Petrol bomb icon
+
+Briefs?
+ - 10 & 35: Mouth icon (displayed on the left of a spoken message, for example when reselling a car at the docks)
+ - 11 & 36: Payphone icon (displayed on the left of payphone brief text)
+ - 12 & 37: Mobile phone icon (displayed on the left of mobile brief text)
+ - 13 & 38: Cop icon (displayed left of criminal record when getting out of jail)
+ - 14 & 39: Information icon (displayed left of the information when taking an information bonus)
+ - 15 & 40: Kill frenzy icon (displayed left of the kill frenzy instructions)
+ - 16-17 & 41-42: Policeman head (when police researches the player)
+
+Active bonuses icon:
+ - 18-19 & 43-44: Armor
+ - 20-21 & 45-46: Get out of jail free
+ - 22-23 & 47-48: Speed bonus
+
+ - 224-229: Object #15: Puddle of blood disappearing (or appearing if played in reverse)
+ - 229: Object #77: Spray of blood (e.g. when pedestrian shot while running, there will be a few spray of blood before the spot where they fall and where the puddle will appear)
+ - 437-448: Object #63: Another puddle of blood?
+ - 449: Object #64: Another puddle of blood?
+
  - 261-264: Tank missile / Rocket launcher "bullet"
  - 265: Look like a bunch of rocks. Tank turret very damaged/explosed? (TODO: confirm)
  - 266: Tank turret
  - 267: Tank cannon
  - 268: Tank turret damaged
  - 269: Tank cannon damaged? (TODO: confirm)
+
+ - 275-276: Ringing phone
+ - 279-290: Suitcase falling into the water
+
+ - 391-396 (maybe 397 too?): Doors of the train opening/closing
 
  - 475: Bullet (Pistol & Machine gun)
  - 476-486: Flame thrower "bullet"
@@ -38,6 +84,14 @@ Vehicles of type motorcycle have 13 sprites:
 
 - 953-965: bike
 - 966-978: superbike
+
+Traffic lights:
+- 942: red
+- 943: green
+- 944: amber
+- 945: off
+- 946: ???
+- 947: ??? (look like a traffic light seen from top, light not visible, but couldn't find a place where it would be used)
 
 - 986-1033: 4 sets of 12 sprites for the explosions for the four directions (in order: NW, NE, SW and SE)
 
