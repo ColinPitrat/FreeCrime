@@ -162,14 +162,35 @@ class G24Parser:
         curr = self.offset
         end = self.offset + self.header['car_size']
         while curr < end:
-            vals = struct.unpack_from('<hhhh', self.data, curr)
-            vtype = self.data[curr + 106]
-            model = self.data[curr + 107]
+            width, height, depth, spr_num, weight, max_speed, min_speed, acceleration, braking, grip, handling = struct.unpack_from('<11h', self.data, curr)
+            remaps24 = struct.unpack_from('<36h', self.data, curr+22)
+            remaps8 = struct.unpack_from('<12B', self.data, curr+94)
+            vtype, model, turning, damageable = struct.unpack_from('<4B', self.data, curr+106)
+            resell_values = struct.unpack_from('<4H', self.data, curr+110)
+            cx, cy = struct.unpack_from('<2b', self.data, curr+118)
+            moment, rbp_mass, g1_thrust, tyre_adhesion_x, tyre_adhesion_y, handbrake_friction, footbrake_friction, front_brake_bias = struct.unpack_from('<8i', self.data, curr + 120)
+            turn_ratio, drive_wheel_offset, steering_wheel_offset = struct.unpack_from('<3h', self.data, curr + 152)
+            back_end_slide_value, handbrake_slide_value = struct.unpack_from('<2i', self.data, curr + 158)
+            convertible, engine, radio, horn, sound_function, fast_change = struct.unpack_from('<6B', self.data, curr + 166)
             doors_count = struct.unpack_from('<h', self.data, curr + 172)[0]
-            curr += 174 + doors_count * 8
+            doors = []
+            curr += 174
+            for _ in range(doors_count):
+                rpx, rpy, obj, delta = struct.unpack('<4h', self.data[curr:curr+8])
+                curr += 8
+                doors.append({'rpx': rpx, 'rpy': rpy, 'object': obj, 'delta': delta})
             self.car_info.append({
-                'width': vals[0], 'height': vals[1], 'depth': vals[2],
-                'spr_num': vals[3], 'vtype': vtype, 'model': model,
+                'width': width, 'height': height, 'depth': depth, 'spr_num': spr_num,
+                'weight': weight, 'max_speed': max_speed, 'min_speed': min_speed,
+                'acceleration': acceleration, 'braking': braking, 'grip': grip, 'handling': handling,
+                'vtype': vtype, 'model': model, 'turning': turning, 'damageable': damageable,
+                'resell_values': resell_values, 'cx': cx, 'cy': cy, 'moment': moment, 'rbp_mass': rbp_mass,
+                'g1_thrust': g1_thrust, 'tyre_adhesion_x': tyre_adhesion_x, 'tyre_adhesion_y': tyre_adhesion_y,
+                'handbrake_friction': handbrake_friction, 'footbrake_friction': footbrake_friction, 'front_brake_bias': front_brake_bias,
+                'turn_ratio': turn_ratio, 'drive_wheel_offset': drive_wheel_offset, 'steering_wheel_offset': steering_wheel_offset,
+                'back_end_slide_value': back_end_slide_value, 'handbrake_slide_value': handbrake_slide_value,
+                'convertible': convertible, 'engine': engine, 'radio': radio, 'horn': horn, 'sound_function': sound_function, 'fast_change': fast_change,
+                'doors_count': doors_count, 'doors': doors,
             })
         self.offset = end
 
@@ -427,10 +448,11 @@ class MapRenderer:
         self.show_lids = show_lids
         self.min_z, self.max_z = min_z, max_z
         self.screen_width, self.screen_height = width, height
+        self.ui_scale = min(width/640, width/480)
         self.view_x, self.view_y = -4.0, -4.0
         #self.view_x, self.view_y = 128.0, 128.0
         #self.view_x, self.view_y = 155.0, 144.0
-        #self.view_x, self.view_y = 70.0, 80.0
+        self.view_x, self.view_y = 70.0, 80.0
         self.base_tile_size = 64
         self.base_scale = 4.0
         self.clicked_x, self.clicked_y = 0, 0
@@ -779,6 +801,7 @@ class MapRenderer:
         player_sprite = 0
         player_height = 4
         player_rotation = 0
+        player_weapon = 0  # 0=fist, 1=pistol, 2=machine gun, 3=rocket launcher, 4=flamethrower, 5=petrol bomb
         vrotate = 5 # rotation speed
         player_remap = 0
         anim_tick_start = pygame.time.get_ticks()
@@ -851,11 +874,17 @@ class MapRenderer:
                         if event.key == pygame.K_c:
                             show_player = 2 if show_player == 1 else 1
                         if event.key == pygame.K_n:
-                            # TODO: Switch to next car model
-                            pass
+                            # Switch to the next car model
+                            if show_player == 2 and player_sprite + 1 < len(self.g24.car_info):
+                                player_sprite += 1
                         if event.key == pygame.K_p:
-                            # TODO: Switch to previous car model
-                            pass
+                            # Switch to previous car model
+                            if show_player == 2 and player_sprite > 0:
+                                player_sprite -= 1
+                        if event.key == pygame.K_w:
+                            player_weapon = (player_weapon + 1) % 6
+                        if event.key == pygame.K_x:
+                            player_weapon = (player_weapon - 1) % 6
                     else:
                         if event.key == pygame.K_s:
                             show_player = (show_player + 1) % 3
@@ -900,6 +929,7 @@ class MapRenderer:
                 walk_speed = 0.01
                 run_speed = 0.03
                 if show_player == 1:
+                    player_sprite = 21  # standing still
                     if keys[pygame.K_LEFT]:
                         player_rotation += vrotate
                     if keys[pygame.K_RIGHT]:
@@ -916,7 +946,67 @@ class MapRenderer:
                         dx, dy = walk_speed * math.sin(angle), walk_speed * math.cos(angle)
                         self.view_x -= dx
                         self.view_y -= dy
+                    if keys[pygame.K_LCTRL]:
+                        # 10: Punching still
+                        # 18: Pistol still
+                        # 22: Pistol backward
+                        # 23: Pistol forward
+                        # 25: Flame-thrower backward
+                        # 26: Flame-thrower forward
+                        # 27: Flame-thrower still
+                        # 28: Machine-gun backward
+                        # 29: Machine-gun forward
+                        # 30: Machine-gun still
+                        # 31: Rocket launcher backward
+                        # 32: Rocket launcher forward
+                        # 33: Rocket launcher still
+                        # 36: Punching forward
+                        if player_weapon == 0: # Punching
+                            if player_sprite == 21:
+                                player_sprite = 10  # Punching still
+                            elif player_sprite == 1:
+                                player_sprite = 36  # Punching forward
+                            # No punching backward
+                        elif player_weapon == 1: # Pistol
+                            if player_sprite == 21:
+                                player_sprite = 18  # Pistol still
+                            elif player_sprite == 1:
+                                player_sprite = 23  # Pistol forward
+                            elif player_sprite == 0:
+                                player_sprite = 22  # Pistol backward
+                        elif player_weapon == 2: # Machine gun
+                            if player_sprite == 21:
+                                player_sprite = 30  # Machine gun still
+                            elif player_sprite == 1:
+                                player_sprite = 29  # Machine gun forward
+                            elif player_sprite == 0:
+                                player_sprite = 28  # Machine gun backward
+                        elif player_weapon == 3: # Rocket launcher
+                            if player_sprite == 21:
+                                player_sprite = 33  # Rocket launcher still
+                            elif player_sprite == 1:
+                                player_sprite = 32  # Rocket launcher forward
+                            elif player_sprite == 0:
+                                player_sprite = 31  # Rocket launcher backward
+                        elif player_weapon == 4: # Flame-thrower
+                            if player_sprite == 21:
+                                player_sprite = 27  # Flame-thrower still
+                            elif player_sprite == 1:
+                                player_sprite = 26  # Flame-thrower forward
+                            elif player_sprite == 0:
+                                player_sprite = 25  # Flame-thrower backward
+                        elif player_weapon == 5: # Petrol bomb: no sprites!
+                            pass
                 elif show_player == 2:
+                    car_info = self.g24.car_info[player_sprite]
+                    min_speed = -0.2
+                    max_speed = 0.5
+                    acceleration = 0.03
+                    braking = 0.001
+                    #min_speed = car_info['min_speed']
+                    #max_speed = car_info['max_speed']
+                    #braking = car_info['braking']
+                    #acceleration = car_info['acceleration']
                     # TODO: Handle commands for driving car
                     # TODO: Support handbrake
                     # Natural braking of the car.
@@ -930,10 +1020,10 @@ class MapRenderer:
                         player_rotation -= vrotate * car_speed * 3
                     if keys[pygame.K_UP]:
                         # TODO: Cap the car speed, use car's properties for acceleration, max speed, etc...
-                        if car_speed < 0.5:
+                        if car_speed < max_speed:
                             car_speed += 0.03
                     if keys[pygame.K_DOWN]:
-                        if car_speed > -0.2:
+                        if car_speed > min_speed:
                             car_speed -= 0.02
                     angle = 2*math.pi*player_rotation/360
                     dx, dy = car_speed * math.sin(angle), car_speed * math.cos(angle)
@@ -1052,6 +1142,7 @@ class MapRenderer:
                                         self.screen.blit(rotated, (int(sx - rotated.get_width()/2), int(sy - rotated.get_height()/2)))
                 if show_player > 0 and z == player_height:
                     sx, sy, scale = self.world_to_screen(self.view_x + 10, self.view_y + 8, player_height)
+                    convertible = False
                     if show_player == 1:
                         anim_speed = 2 # works well (at least for walking/running)
                         anim_idx = ((ticks - anim_tick_start) // (1000 * anim_speed // 20)) % ped_grouping[player_sprite]
@@ -1066,12 +1157,33 @@ class MapRenderer:
                         spr_surf = self.get_sprite_surface(spr_num, remap)
                     elif show_player == 2:
                         car_info = self.g24.car_info[player_sprite]
+                        motorbike = car_info['vtype'] == 3
+                        convertible = car_info['convertible'] != 0
                         spr_num = car_info['spr_num'] + self.g24.sprite_bases[self.vehicle_type_const(car_info['vtype'])]
                         base_remap = player_sprite * 12  # There are 12 remaps per car
                         remap = -1
                         if player_remap > 0:
                             remap = base_remap+player_remap-1
                         spr_surf = self.get_sprite_surface(spr_num, remap)
+                        if convertible or motorbike:
+                            rpx, rpy = car_info['doors'][0]['rpx'], car_info['doors'][0]['rpy']
+                            driving = 20
+                            if motorbike:
+                                driving = 16
+                            spr2_num = self.g24.sprite_bases['ped'] + ped_boundaries[driving]
+                            spr2_surf = self.get_sprite_surface(spr2_num, 0)
+                            #print(f"{"Convertible" if convertible else "Motorbike"} {player_sprite}: {rpx},{rpy}")
+                            if motorbike:
+                                # This is not what the game does but it works quite well for motorbikes!
+                                # Actually this looks better for the superbike than in the real game.
+                                if player_sprite == 29:
+                                    spr_surf.blit(spr2_surf, ((spr_surf.get_width() - spr2_surf.get_width())/ 2, (spr_surf.get_height() - spr2_surf.get_height())/ 2))
+                                # For the basic motorbike, this one looks better:
+                                if player_sprite == 3:
+                                    spr_surf.blit(spr2_surf, ((spr_surf.get_width() - spr2_surf.get_width())/ 2 - 1, (spr_surf.get_height() - spr2_surf.get_height())/ 2 - 2))
+                            else:
+                                # This doesn't make sense either, but this works quite well for all the convertible cars!
+                                spr_surf.blit(spr2_surf, (spr_surf.get_width() / 2, rpy))
                     if spr_surf:
                         scaled = pygame.transform.scale(spr_surf, (max(1, int(spr_surf.get_width()*scale)), max(1, int(spr_surf.get_height()*scale))))
                         rotated = pygame.transform.rotate(scaled, player_rotation)
@@ -1085,24 +1197,37 @@ class MapRenderer:
                     for x in range(0, 256):
                         _, blocks = self.cmp.get_column(x, y)
                         for block in blocks:
-                            if block['lid_remap'] != 0:
-                                print(f"Remapped lid at {x},{y}")
+                            #if block['lid_remap'] != 0:
+                            #    print(f"Remapped lid at {x},{y}")
+                            if block['traffic_lights'] != 0:
+                                print(f"Traffic lights {block['traffic_lights']} at {x},{y}")
                 break
             # Code to find where objects with a particular property are
             if False:
                 for obj in self.cmp.objects:
+                    obj_info = self.g24.object_info[obj['type']]
+                    # This first if confirms that traffic light objects are never used directly.
+                    if obj_info['spr_num'] >= 942 and obj_info['spr_num'] <= 947:
+                        x = obj['x'] // 64
+                        y = obj['y'] // 64
+                        print(f"Traffic light {obj['spr_num']} at {x},{y}: {obj} - {obj_info}")
+                    # These 2 if are looking for remapped objects & cars.
                     if obj['remap'] > 0 and obj['remap'] < 128:
-                        info = self.g24.object_info[obj['type']]
                         x = obj['x'] // 64
                         y = obj['y'] // 64
-                        print(f"Remapped object at {x},{y}: {obj} - {info}")
+                        print(f"Remapped object at {x},{y}: {obj} - {obj_info}")
                     if obj['remap'] > 128:
-                        info = next(car for car in self.g24.car_info if car['model'] == obj['type'])
+                        car_info = next(car for car in self.g24.car_info if car['model'] == obj['type'])
                         x = obj['x'] // 64
                         y = obj['y'] // 64
-                        print(f"Remapped car at {x},{y}: {obj} - {info}")
+                        print(f"Remapped car at {x},{y}: {obj} - {car_info}")
                 break
 
+            # Display selected weapon
+            if self.play_mode and player_weapon > 0:
+                weapon = self.get_sprite_surface(player_weapon + 29, 0)
+                scaled_weapon = pygame.transform.scale(weapon, (weapon.get_width()*self.ui_scale, weapon.get_height()*self.ui_scale))
+                self.screen.blit(scaled_weapon, (0, 0))
 
             # Display area name
             # TODO: Understand the logic the game uses to split areas in North/South East/West and Central: is it just splitting the area in 9? Is it more subtle?
