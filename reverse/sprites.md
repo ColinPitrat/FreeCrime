@@ -63,6 +63,10 @@ Active bonuses icon:
  - 275-276: Ringing phone
  - 279-290: Suitcase falling into the water
 
+ - 349-356: Jet of water? (for firetruck? Never saw it happen in the game!)
+ - 357-364: Jet of water reaching fire and evaporating?
+
+ - 365: Object #50: The water cannon of the fire trucks
  - 391-396 (maybe 397 too?): Doors of the train opening/closing
 
  - 475: Bullet (Pistol & Machine gun)
