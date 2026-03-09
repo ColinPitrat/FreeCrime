@@ -1,9 +1,14 @@
-display_map.py:
+display_map.py (generic):
  - Flat sprite disappear when perfectly vertical
  - Car remap doesn't work? (but no example!)
  - Slopes lids often have a black border
  - Sides of slopes are not properly displayed (they should be cut from the texture, not the texture fully mapped).
  - Start using deltas (opening doors, combining with damages, ...)
+
+display_map.py (play mode):
+ - shorter turn radius going backward
+ - use cars properties: acceleration, max speed, min speed, center of mass, turn ratio, ...
+ - support hand brake
 
 modify_cmp.py:
  - Support slopes properly
