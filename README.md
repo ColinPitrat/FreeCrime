@@ -64,4 +64,25 @@ Note: The tool [modify_cmp.py](reverse/modify_cmp.py) can be useful to enable
 some tests. For example, one can create a large are of road tiles to allow
 testing cars.
 
-TODO: Document how to use `modify_cmp.py` to create a large empty car park.
+To create a car testing are in Liberty City, in the starting place of the first
+level, start by creating a copy of the map (you're going to mess with it):
+
+```
+cp ${PATH_TO_GTADATA:?}/NYC.CMP ${PATH_TO_GTADATA:?}/NYC.CMP.ORI
+```
+
+Beware: always keep a backup of the game's original resources somewhere safe.
+There's always a risk of messing things up with an incorrect command, even when
+doing a manual copy before each modification.
+
+Then use `modify_cmp.py` to copy the tile `7,5` around the starting area:
+
+```
+python3 reverse/modify_cmp.py ${PATH_TO_GTADATA:?}/NYC.CMP --generate 7,5 --output ${PATH_TO_GTADATA:?}/NYC.CMP
+```
+
+When you're done, you can restore the original map with:
+
+```
+cp ${PATH_TO_GTADATA:?}/NYC.CMP.ORI ${PATH_TO_GTADATA:?}/NYC.CMP
+```

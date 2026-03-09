@@ -400,7 +400,7 @@ def main():
             sys.exit(1)
         to_copy = cmp_file.base[y][x]
         #for i in range(256):
-        for i in range(100, 120):
+        for i in range(100, 150):
         #    for j in range(256):
             for j in range(100, 120):
                 cmp_file.base[i][j] = to_copy
