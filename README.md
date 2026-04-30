@@ -64,7 +64,7 @@ Note: The tool [modify_cmp.py](reverse/modify_cmp.py) can be useful to enable
 some tests. For example, one can create a large are of road tiles to allow
 testing cars.
 
-To create a car testing are in Liberty City, in the starting place of the first
+To create a car testing area in Liberty City, in the starting place of the first
 level, start by creating a copy of the map (you're going to mess with it):
 
 ```
