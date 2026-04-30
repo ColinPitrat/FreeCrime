@@ -20,7 +20,7 @@ subdirectory.
 
 ## How to help?
 
-You can help by playing the game! (How cool is that?)
+You can help by playing the original game! (How cool is that?)
 
 ### Identifying sprites
 
