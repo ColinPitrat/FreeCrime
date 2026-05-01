@@ -360,7 +360,7 @@ class CMPParser:
         lid_rotation = (typemap & 0xC000) >> 14
         traffic_lights = typemapext & 0x7
         lid_remap = (typemapext & 0x18) >> 3
-        flip_top_bottom = (typemapext & 0x20) >> 5
+        flip_top_bottom = not ((typemapext & 0x20) >> 5)
         flip_left_right = (typemapext & 0x40) >> 6
         railway = (typemapext & 0x80) >> 7
         return {
@@ -452,9 +452,9 @@ class MapRenderer:
         self.view_x, self.view_y = -4.0, -4.0
         #self.view_x, self.view_y = 128.0, 128.0
         #self.view_x, self.view_y = 155.0, 144.0
-        self.view_x, self.view_y = 70.0, 80.0
+        #self.view_x, self.view_y = 70.0, 80.0
         self.base_tile_size = 64
-        self.base_scale = 4.0
+        self.base_scale = 2.0
         self.clicked_x, self.clicked_y = 0, 0
         self.display_tiles_h = int(self.screen_width / 64 + 1)  # Number of tiles to display horizontally
         self.display_tiles_v = int(self.screen_height / 64 + 1)  # Number of tiles to display vertically
