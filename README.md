@@ -14,9 +14,39 @@ using [Bevy](https://bevy.org/) with the objectives of:
 
 ## Current status
 
-There is no code written, reverse engineering of the original game is on-going.
-The on-going reverse engineering work is documented in the [reverse](reverse/README.md)
-subdirectory.
+Reverse engineering of the original game is still on-going (and will likely
+never be fully finished!).
+
+There is a map viewer which allows to explore the map in 3D implemented already.
+
+## Usage
+```bash
+# Show summary of a file
+cargo run -- info gamedata/gta/NYC.CMP
+
+# Extract content (text from FXT, BMPs from FON/GRY)
+cargo run -- extract gamedata/gta/ENGLISH.FXT english.txt
+
+# Generate a map overview BMP
+cargo run -- overview gamedata/gta/NYC.CMP
+
+# Interactive 3D map viewer (Bevy)
+cargo run -- display gamedata/gta/NYC.CMP gamedata/gta/STYLE001.GRY
+```
+
+Supported extraction:
+- **FXT**: Decrypts and saves to a plain text file.
+- **FON**: Extracts all glyphs as 32-bit BMP images.
+- **GRY**: Extracts block faces as 32-bit BMP images.
+- **SDT**: Exports sound index metadata as a CSV file.
+
+The `overview` command generates a static top-down overview of the map as a `map_overview.bmp` file.
+
+The `display` command launches an interactive 3D viewer using Bevy.
+- **Controls**:
+  - **WASD**: Move horizontally
+  - **Space/Shift**: Move Up/Down
+  - **Q/E**: Rotate camera
 
 ## How to help?
 
