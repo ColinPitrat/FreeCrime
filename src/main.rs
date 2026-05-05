@@ -1,62 +1,59 @@
 mod command;
 
-use std::env;
+use clap::{Parser, Subcommand};
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        print_usage();
-        return;
-    }
-
-    let command = &args[1];
-
-    match command.as_str() {
-        "info" => {
-            if args.len() < 3 {
-                eprintln!("Usage: info <file>");
-                return;
-            }
-            if let Err(e) = command::info::execute(&args[2]) {
-                eprintln!("Error: {}", e);
-            }
-        }
-        "extract" => {
-            if args.len() < 4 {
-                eprintln!("Usage: extract <file> <out>");
-                return;
-            }
-            if let Err(e) = command::extract::execute(&args[2], &args[3]) {
-                eprintln!("Error: {}", e);
-            }
-        }
-        "overview" => {
-            if args.len() < 3 {
-                eprintln!("Usage: overview <cmp_file>");
-                return;
-            }
-            if let Err(e) = command::overview::execute(&args[2]) {
-                eprintln!("Error: {}", e);
-            }
-        }
-        "display" => {
-            if args.len() < 4 {
-                eprintln!("Usage: display <cmp_file> <gry_file>");
-                return;
-            }
-            if let Err(e) = command::display::execute(&args[2], &args[3]) {
-                eprintln!("Error: {}", e);
-            }
-        }
-        _ => print_usage(),
-    }
+#[derive(Parser)]
+#[command(name = "FreeCrime", about = "GTA Resource Tool", version = "0.1.0")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 }
 
-fn print_usage() {
-    println!("GTA Resource Tool");
-    println!("Usage:");
-    println!("  info <file>             Show information about a game file");
-    println!("  extract <file> <out>    Extract content from a game file");
-    println!("  overview <cmp>          Generate a top-down overview BMP of the map");
-    println!("  display <cmp> <gry>     Interactive 3D map viewer (Bevy)");
+#[derive(Subcommand)]
+enum Commands {
+    /// Show information about a game file
+    Info {
+        /// Path to the game file (CMP, GRY, G24, FXT, FON, SDT, INI)
+        file: String,
+    },
+    /// Extract content from a game file
+    Extract {
+        /// Path to the game file
+        file: String,
+        /// Output directory or file
+        out: String,
+    },
+    /// Generate a top-down overview BMP of the map
+    Overview {
+        /// Path to the CMP map file
+        cmp: String,
+    },
+    /// Interactive 3D map viewer (Bevy)
+    Display {
+        /// Path to the CMP map file
+        cmp: String,
+        /// Path to the GRY/G24 style file
+        gry: String,
+    },
+}
+
+fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Info { file } => {
+            command::info::execute(&file).map_err(|e| anyhow::anyhow!("{}", e))?;
+        }
+        Commands::Extract { file, out } => {
+            command::extract::execute(&file, &out).map_err(|e| anyhow::anyhow!("{}", e))?;
+        }
+        Commands::Overview { cmp } => {
+            command::overview::execute(&cmp).map_err(|e| anyhow::anyhow!("{}", e))?;
+        }
+        Commands::Display { cmp, gry } => {
+            command::display::execute(&cmp, &gry).map_err(|e| anyhow::anyhow!("{}", e))?;
+        }
+    }
+
+    Ok(())
 }

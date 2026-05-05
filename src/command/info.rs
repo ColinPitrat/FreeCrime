@@ -2,7 +2,7 @@ use freecrime::resources::parsers;
 use std::fs;
 use std::path::Path;
 
-pub fn execute(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn execute(path: &str) -> anyhow::Result<()> {
     let data = fs::read(path)?;
     let ext = Path::new(path)
         .extension()
@@ -29,8 +29,7 @@ pub fn execute(path: &str) -> Result<(), Box<dyn std::error::Error>> {
                 max_lid = max_lid.max(bt.lid);
             }
             println!("  Max Tile Indices: side={}, lid={}", max_side, max_lid);
-            }
-
+        }
         "GRY" | "G24" => {
             let style = parsers::gry::parse_gry(&data)?;
             println!("Style File ({}):", ext);

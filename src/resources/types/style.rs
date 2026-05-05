@@ -2,7 +2,7 @@ use super::graphics::{IndexedImage, Palette};
 
 #[derive(Debug, Clone, Default)]
 pub struct Style {
-    pub blocks: Vec<IndexedImage>, // Combined blocks (side, lid, aux)
+    pub blocks: Vec<IndexedImage>,
     pub side_count: usize,
     pub lid_count: usize,
     pub aux_count: usize,
@@ -18,6 +18,10 @@ pub struct Style {
 }
 
 impl Style {
+    pub fn is_block_animated(&self, map_idx: usize, which: u8) -> bool {
+        self.animations.iter().any(|a| a.block as usize == map_idx && a.which == which)
+    }
+
     pub fn get_animated_atlas_idx(&self, map_idx: usize, which: u8, remap: usize, ticks: u64) -> usize {
         for anim in &self.animations {
             if anim.block as usize == map_idx && anim.which == which {
@@ -185,9 +189,9 @@ mod tests {
             frames: vec![0],
         });
         
-        // Frame 0 at ticks 0..4
+        // Frame 0
         assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 0), 10);
-        // Frame 1 (Aux 0) at ticks 5
+        // Frame 1 -> side_count + lid_count*4 + aux_idx = 100 + 200 + 0 = 300
         assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 5), 300);
     }
 }

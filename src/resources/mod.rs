@@ -8,29 +8,19 @@ pub use types::font::Font;
 pub use types::graphics::{IndexedImage, Palette};
 pub use parsers::ini::Mission;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    Io(std::io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Parse error: {0}")]
     Parse(String),
+
+    #[error("Binary read error: {0}")]
+    BinRead(#[from] binrw::Error),
+
+    #[error("Other error: {0}")]
     Other(String),
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Io(e) => write!(f, "IO error: {}", e),
-            Error::Parse(s) => write!(f, "Parse error: {}", s),
-            Error::Other(s) => write!(f, "Other error: {}", s),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Error::Io(e)
-    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
