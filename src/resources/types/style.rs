@@ -8,9 +8,16 @@ pub struct Style {
     pub aux_count: usize,
     
     pub animations: Vec<Animation>,
-    pub palette: Palette,
-    pub remap_tables: Vec<[u8; 256]>,
-    pub remap_indices: Vec<[u8; 4]>,
+    pub palette: Palette, // Primary palette for GRY/G24
+    pub remap_tables: Vec<[u8; 256]>, // For GRY
+    pub remap_indices: Vec<[u8; 4]>, // For GRY (lid remap tables)
+    
+    // G24 specific
+    pub cluts: Vec<Palette>,
+    pub palette_index: Vec<u16>,
+    pub tile_clut_offset: usize,
+    pub sprite_clut_offset: usize,
+
     pub objects: Vec<ObjectInfo>,
     pub cars: Vec<CarInfo>,
     pub sprites: Vec<Sprite>,
@@ -43,7 +50,48 @@ impl Style {
             self.side_count + map_idx * 4 + remap
         }
     }
+
+    /// Gets the RGBA pixels for a block face, handling both GRY and G24 palette systems.
+    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize) -> Vec<u8> {
+        let block_idx = match face_type {
+            FaceType::Side => face_idx,
+            FaceType::Lid => self.side_count + face_idx,
+            FaceType::Aux => self.side_count + self.lid_count + face_idx,
+        };
+        
+        if block_idx >= self.blocks.len() { return vec![0; 64 * 64 * 4]; }
+        let block = &self.blocks[block_idx];
+        
+        if !self.cluts.is_empty() {
+            // G24 logic
+            let pal_idx_base = match face_type {
+                FaceType::Side => 4 * face_idx,
+                FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
+                FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count),
+            };
+            
+            let clut_idx = if pal_idx_base < self.palette_index.len() {
+                self.palette_index[pal_idx_base] as usize
+            } else { 0 };
+            
+            let palette = self.cluts.get(clut_idx).unwrap_or(&self.palette);
+            block.to_rgba(palette)
+        } else {
+            // GRY logic
+            let table_idx = if face_type == FaceType::Lid {
+                if face_idx < self.remap_indices.len() {
+                    self.remap_indices[face_idx][remap] as usize
+                } else { 0 }
+            } else { 0 };
+            
+            let table = self.remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
+            block.to_rgba_remapped(&self.palette, table)
+        }
+    }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FaceType { Side, Lid, Aux }
 
 #[derive(Debug, Clone, Default)]
 pub struct Animation {

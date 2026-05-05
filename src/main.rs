@@ -34,6 +34,12 @@ enum Commands {
         cmp: String,
         /// Path to the GRY/G24 style file
         gry: String,
+        /// Initial camera position (X,Y,Z)
+        #[arg(long)]
+        camera_position: Option<String>,
+        /// Initial camera rotation in degrees (YAW,PITCH,ROLL)
+        #[arg(long)]
+        camera_rotation: Option<String>,
     },
 }
 
@@ -50,10 +56,24 @@ fn main() -> anyhow::Result<()> {
         Commands::Overview { cmp } => {
             command::overview::execute(&cmp).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
-        Commands::Display { cmp, gry } => {
-            command::display::execute(&cmp, &gry).map_err(|e| anyhow::anyhow!("{}", e))?;
+        Commands::Display { cmp, gry, camera_position, camera_rotation } => {
+            let pos = parse_vec3(camera_position)?;
+            let rot = parse_vec3(camera_rotation)?;
+            command::display::execute(&cmp, &gry, pos, rot).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
     }
 
     Ok(())
+}
+
+fn parse_vec3(s: Option<String>) -> anyhow::Result<Option<[f32; 3]>> {
+    let Some(s) = s else { return Ok(None); };
+    let parts: Vec<&str> = s.split(',').collect();
+    if parts.len() != 3 {
+        anyhow::bail!("Invalid vector format: expected X,Y,Z but got '{}'", s);
+    }
+    let x = parts[0].trim().parse::<f32>()?;
+    let y = parts[1].trim().parse::<f32>()?;
+    let z = parts[2].trim().parse::<f32>()?;
+    Ok(Some([x, y, z]))
 }

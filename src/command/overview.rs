@@ -5,7 +5,7 @@ use std::path::Path;
 pub fn execute(cmp_path: &str) -> anyhow::Result<()> {
     let map_data = fs::read(cmp_path)?;
     let map = parsers::cmp::parse_cmp(&map_data)?;
-
+    
     let mut pixels = vec![0u8; 256 * 256 * 3];
     for y in 0..256 {
         for x in 0..256 {
@@ -18,7 +18,7 @@ pub fn execute(cmp_path: &str) -> anyhow::Result<()> {
                     break;
                 }
             }
-
+            
             let color = if bt_idx == 0 {
                 [0, 0, 0] // Air
             } else {
@@ -32,16 +32,16 @@ pub fn execute(cmp_path: &str) -> anyhow::Result<()> {
                     _ => [50, 50, 50],
                 }
             };
-
+            
             let idx = (y * 256 + x) * 3;
             pixels[idx..idx+3].copy_from_slice(&color);
         }
     }
-
+    
     let out_path = Path::new(cmp_path).with_extension("bmp");
     let img = image::RgbImage::from_raw(256, 256, pixels).unwrap();
     img.save(&out_path)?;
-
+    
     println!("Overview generated: {:?}", out_path);
     Ok(())
 }

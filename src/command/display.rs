@@ -7,13 +7,26 @@ use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use std::fs;
 
-pub fn execute(map_path: &str, style_path: &str) -> anyhow::Result<()> {
+pub fn execute(
+    map_path: &str, 
+    style_path: &str,
+    initial_pos_arr: Option<[f32; 3]>,
+    initial_rot_arr: Option<[f32; 3]>,
+) -> anyhow::Result<()> {
     let map_data = fs::read(map_path)?;
     let style_data = fs::read(style_path)?;
     
     let map = parsers::cmp::parse_cmp(&map_data)?;
     let style = parsers::gry::parse_gry(&style_data)?;
     
+    let pos = initial_pos_arr.map(|a| Vec3::from_array(a)).unwrap_or(Vec3::new(128.0, 150.0, 128.0));
+    let rot = initial_rot_arr.map(|a| Quat::from_euler(
+        EulerRot::YXZ,
+        a[0].to_radians(),
+        a[1].to_radians(),
+        a[2].to_radians(),
+    )).unwrap_or(Quat::from_euler(EulerRot::YXZ, 0.0, -90.0f32.to_radians(), 0.0));
+
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -25,6 +38,7 @@ pub fn execute(map_path: &str, style_path: &str) -> anyhow::Result<()> {
         .insert_resource(ClearColor(Color::srgb(0.1, 0.1, 0.2)))
         .insert_resource(MapData { map, style })
         .insert_resource(AnimationTicks(0))
+        .insert_resource(InitialCamera { pos, rot })
         .add_systems(Startup, setup)
         .add_systems(Update, (camera_movement_system, animation_system))
         .run();
@@ -36,6 +50,12 @@ pub fn execute(map_path: &str, style_path: &str) -> anyhow::Result<()> {
 struct MapData {
     map: Map,
     style: Style,
+}
+
+#[derive(Resource)]
+struct InitialCamera {
+    pos: Vec3,
+    rot: Quat,
 }
 
 #[derive(Resource)]
@@ -54,6 +74,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     map_data: Res<MapData>,
+    initial_camera: Res<InitialCamera>,
 ) {
     // 1. Create Texture Atlas
     let tile_size = 64;
@@ -64,34 +85,30 @@ fn setup(
     // Direct mapping: Map Index 0 maps to Atlas Index 0
     let mut current_atlas_idx = 0;
     
+    use freecrime::resources::types::style::FaceType;
+
     // Sides
-    for block in &map_data.style.blocks[0..map_data.style.side_count] {
+    for face_idx in 0..map_data.style.side_count {
         if current_atlas_idx >= 1024 { break; }
-        let rgba = block.to_rgba_remapped(&map_data.style.palette, &map_data.style.remap_tables[0]);
+        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0);
         copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
         current_atlas_idx += 1;
     }
     
     // Lids (4 remaps each)
-    let lid_start = map_data.style.side_count;
-    for lid_idx in 0..map_data.style.lid_count {
-        let block = &map_data.style.blocks[lid_start + lid_idx];
+    for face_idx in 0..map_data.style.lid_count {
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let table_idx = if map_data.style.remap_indices.len() > lid_idx {
-                map_data.style.remap_indices[lid_idx][remap] as usize
-            } else { 0 };
-            let rgba = block.to_rgba_remapped(&map_data.style.palette, &map_data.style.remap_tables[table_idx]);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }
     }
     
     // Aux
-    let lid_end = lid_start + map_data.style.lid_count;
-    for block in &map_data.style.blocks[lid_end..lid_end + map_data.style.aux_count] {
+    for face_idx in 0..map_data.style.aux_count {
         if current_atlas_idx >= 1024 { break; }
-        let rgba = block.to_rgba_remapped(&map_data.style.palette, &map_data.style.remap_tables[0]);
+        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, 0);
         copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
         current_atlas_idx += 1;
     }
@@ -127,16 +144,21 @@ fn setup(
         }
     }
 
-    // 3. Camera - Top Down Default
+    // 3. Camera
     commands.spawn((
         Camera3d::default(),
         Tonemapping::None,
-        Transform::from_xyz(128.0, 150.0, 128.0).looking_to(Vec3::NEG_Y, Vec3::NEG_Z),
+        Transform {
+            translation: initial_camera.pos,
+            rotation: initial_camera.rot,
+            ..default()
+        },
     ));
 
-    println!("Display ready. Camera is TOP-DOWN by default.");
+    println!("Display ready.");
     println!("Controls: WASD (move), Q/E (Roll), PageUp/Down (altitude)");
     println!("          Arrows Up/Down (Pitch), Arrows Left/Right (Yaw)");
+    println!("          L: Log current position and angle");
 }
 
 fn copy_to_atlas(atlas: &mut [u8], atlas_size: usize, idx: usize, rgba: &[u8]) {
@@ -184,7 +206,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                         Vec3::Y, atlas_idx, tiles_per_row, bt.lid_rotation(), false, [0.0, 0.0, 1.0, 1.0]);
                 }
                 
-                // Sides (Flat blocks only render West and North faces)
+                // Sides
                 let is_flat = bt.is_flat();
                 let flip_tb = (bt.type_map_ext & 0x20) == 0;
                 let flip_lr = (bt.type_map_ext & 0x40) == 0;
@@ -218,7 +240,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                     if map_data.style.is_block_animated(bt.bottom as usize, 0) { has_animations = true; }
                     let atlas_idx = map_data.style.get_animated_atlas_idx(bt.bottom as usize, 0, 0, ticks);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
-                        [Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx, fy - d4, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz+1.0)],
+                        [Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx, fy - d4, fz+1.0), Vec3::new(fx, fy-1.0, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz+1.0)],
                         Vec3::Z, atlas_idx, tiles_per_row, 0, flip_tb, [d3, d4, 1.0, 1.0]);
                 }
             }
@@ -267,6 +289,15 @@ fn camera_movement_system(
     mut query: Query<&mut Transform, With<Camera>>,
 ) {
     let Ok(mut transform) = query.get_single_mut() else { return; };
+    
+    if keyboard_input.just_pressed(KeyCode::KeyL) {
+        let (yaw, pitch, roll) = transform.rotation.to_euler(EulerRot::YXZ);
+        let pos = transform.translation;
+        println!("Current Camera:");
+        println!("  --camera-position {:.2},{:.2},{:.2}", pos.x, pos.y, pos.z);
+        println!("  --camera-rotation {:.2},{:.2},{:.2}", yaw.to_degrees(), pitch.to_degrees(), roll.to_degrees());
+    }
+
     let mut direction = Vec3::ZERO;
     let speed = 80.0;
 

@@ -81,16 +81,20 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     // 1. Block Data
     let total_block_size = header.side_size() + header.lid_size() + header.aux_size();
     let block_count = total_block_size / 4096;
-    let actual_block_data_size = if is_g24 {
-        let rem = block_count % 4;
-        let padding = if rem == 0 { 0 } else { (4 - rem) * 4096 };
-        total_block_size + padding
-    } else {
-        total_block_size
-    };
+    let rem = block_count % 4;
+    let padding_blocks = if rem == 0 { 0 } else { 4 - rem };
+    let actual_block_data_size = (block_count + padding_blocks) * 4096;
     
     let mut block_data = vec![0u8; actual_block_data_size as usize];
-    cursor.read_exact(&mut block_data)?;
+    let start_pos = cursor.position();
+    match cursor.read_exact(&mut block_data) {
+        Ok(_) => {},
+        Err(_) => {
+            cursor.set_position(start_pos);
+            cursor.read_exact(&mut block_data[..total_block_size as usize])?;
+            cursor.set_position(start_pos + total_block_size as u64);
+        }
+    }
     
     let mut blocks = Vec::with_capacity(block_count as usize);
     let rows = (block_count + 3) / 4;
@@ -119,31 +123,49 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         let mut anim_cursor = Cursor::new(anim_data_slice);
         let num_anims: u8 = anim_cursor.read_le()?;
         for _ in 0..num_anims {
+            if anim_cursor.position() + 4 > header.anim_size() as u64 { break; }
             let block: u8 = anim_cursor.read_le()?;
             let which: u8 = anim_cursor.read_le()?;
             let speed: u8 = anim_cursor.read_le()?;
             let frame_count: u8 = anim_cursor.read_le()?;
+            if anim_cursor.position() + frame_count as u64 > header.anim_size() as u64 { break; }
             let mut frames = Vec::with_capacity(frame_count as usize);
-            for _ in 0..frame_count { frames.push(anim_cursor.read_le::<u8>()?); }
+            for _ in 0..frame_count { 
+                frames.push(anim_cursor.read_le::<u8>()?); 
+            }
             animations.push(Animation { block, which, speed, frames });
         }
     }
     
     // 3. Palette / CLUT
-    let palette = if is_g24 {
-        let mut paged_size = header.palette_size();
+    let mut cluts = Vec::new();
+    let mut primary_palette = Palette::default();
+    
+    if is_g24 {
+        let clut_size = header.palette_size();
+        let mut paged_size = clut_size;
         if paged_size % 65536 != 0 { paged_size += 65536 - (paged_size % 65536); }
-        let mut clut_data = vec![0u8; paged_size as usize];
-        cursor.read_exact(&mut clut_data)?;
-        let mut colors = [[0u8; 3]; 256];
-        if !clut_data.is_empty() {
-            for i in 0..256 {
-                colors[i][2] = clut_data[i * 4];
-                colors[i][1] = clut_data[i * 4 + 1];
-                colors[i][0] = clut_data[i * 4 + 2];
+        let mut clut_data_raw = vec![0u8; paged_size as usize];
+        cursor.read_exact(&mut clut_data_raw)?;
+        
+        let num_cluts = (clut_data_raw.len() / 1024) as usize;
+        cluts = Vec::with_capacity(num_cluts);
+        for pal in 0..num_cluts {
+            let off = 65536 * (pal / 64) + 4 * (pal % 64);
+            let mut colors = [[0u8; 3]; 256];
+            for col in 0..256 {
+                let coff = col * 256 + off;
+                if coff + 2 < clut_data_raw.len() {
+                    colors[col][2] = clut_data_raw[coff];
+                    colors[col][1] = clut_data_raw[coff + 1];
+                    colors[col][0] = clut_data_raw[coff + 2];
+                }
             }
+            cluts.push(Palette { colors });
         }
-        Palette { colors }
+        if let Some(first) = cluts.first() {
+            primary_palette = first.clone();
+        }
     } else {
         let mut palette_data = vec![0u8; header.palette_size() as usize];
         cursor.read_exact(&mut palette_data)?;
@@ -155,10 +177,10 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
                 colors[i][2] = (palette_data[i * 3 + 2] << 2) | (palette_data[i * 3 + 2] >> 4);
             }
         }
-        Palette { colors }
-    };
+        primary_palette = Palette { colors };
+    }
     
-    // 4. Remap Tables
+    // 4. Remap Tables (GRY)
     let mut remap_tables = Vec::new();
     if !is_g24 {
         let num_remaps = header.remap_size() / 256;
@@ -173,12 +195,15 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         remap_tables.push(table);
     }
     
-    // 5. Remap Index
+    // 5. Remap Index (GRY) or Palette Index (G24)
     let mut remap_indices = Vec::new();
+    let mut palette_index = Vec::new();
+    
     if is_g24 {
-        for _ in 0..header.remap_size() / 2 {
-            let _: u16 = cursor.read_le()?;
-            remap_indices.push([0, 0, 0, 0]);
+        let count = header.remap_index_size() / 2;
+        palette_index = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            palette_index.push(cursor.read_le::<u16>()?);
         }
     } else {
         for _ in 0..header.remap_index_size() / 4 {
@@ -258,13 +283,9 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     // 8. Sprite Info & 9. Sprite Graphics
     let sprite_info_start = cursor.position();
     let sprite_graphics_start = sprite_info_start + header.sprite_info_size() as u64;
-    cursor.seek(SeekFrom::Start(sprite_graphics_start))?;
-    let _sprite_graphics_data = vec![0u8; header.sprite_graphics_size() as usize];
     
-    cursor.seek(SeekFrom::Start(sprite_info_start))?;
     let mut sprites = Vec::new();
-    let mut info_consumed = 0u64;
-    while info_consumed < header.sprite_info_size() as u64 {
+    while cursor.position() < sprite_graphics_start {
         let w: u8 = cursor.read_le()?;
         let h: u8 = cursor.read_le()?;
         let dc: u8 = cursor.read_le()?;
@@ -275,13 +296,11 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
             let _: u8 = cursor.read_le()?;
             let _: u8 = cursor.read_le()?;
             let _: u16 = cursor.read_le()?;
-            info_consumed += 12;
-            for _ in 0..dc { let _: u32 = cursor.read_le()?; let _: u16 = cursor.read_le()?; info_consumed += 6; }
+            for _ in 0..dc { let _: u16 = cursor.read_le()?; let _: u32 = cursor.read_le()?; }
         } else {
             let _: u16 = cursor.read_le()?;
             let _: u32 = cursor.read_le()?;
-            info_consumed += 10;
-            for _ in 0..dc { let _: u32 = cursor.read_le()?; let _: u16 = cursor.read_le()?; info_consumed += 6; }
+            for _ in 0..dc { let _: u16 = cursor.read_le()?; let _: u32 = cursor.read_le()?; }
         }
         sprites.push(Sprite { width: w, height: h, image: vec![], deltas: vec![] });
     }
@@ -305,7 +324,14 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
          return Err(Error::Parse(format!("GRY file has {} trailing bytes", data.len() as u64 - cursor.position())));
     }
 
-    Ok(Style { blocks, side_count, lid_count, aux_count, animations, palette, remap_tables, remap_indices, objects, cars, sprites, sprite_numbers })
+    Ok(Style { 
+        blocks, side_count, lid_count, aux_count, animations, 
+        palette: primary_palette, remap_tables, remap_indices, 
+        cluts, palette_index, 
+        tile_clut_offset: 0, // Placeholder
+        sprite_clut_offset: 0, // Placeholder
+        objects, cars, sprites, sprite_numbers 
+    })
 }
 
 fn read_f32_fix(r: &mut (impl Read + Seek)) -> Result<f32> { 
