@@ -331,7 +331,7 @@ fn camera_movement_system(
 fn animation_system(
     time: Res<Time>,
     mut ticks: ResMut<AnimationTicks>,
-    mut query: Query<(&Chunk, &mut Mesh3d)>,
+    query: Query<(&Chunk, &Mesh3d)>,
     mut meshes: ResMut<Assets<Mesh>>,
     map_data: Res<MapData>,
 ) {
@@ -339,11 +339,11 @@ fn animation_system(
     if ticks.0 == new_ticks { return; }
     ticks.0 = new_ticks;
     
-    for (chunk, mesh_handle) in query.iter_mut() {
+    for (chunk, mesh_handle) in query.iter() {
         if chunk.has_animations {
             if let Some((new_mesh, _)) = generate_chunk_mesh(&map_data, chunk.cx, chunk.cy, 32, ticks.0) {
-                if let Some(m) = meshes.get_mut(mesh_handle.id()) {
-                    *m = new_mesh;
+                if let Some(mesh) = meshes.get_mut(mesh_handle.id()) {
+                    *mesh = new_mesh;
                 }
             }
         }
