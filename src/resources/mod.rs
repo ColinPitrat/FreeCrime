@@ -45,7 +45,7 @@ impl CityBundle {
         let style = parsers::gry::parse_gry(style_data)?;
         let mission = parsers::ini::parse_mission(mission_data)?;
         let text = parsers::fxt::parse_fxt(text_data)?;
-        
+
         Ok(Self { map, style, mission, text })
     }
 }

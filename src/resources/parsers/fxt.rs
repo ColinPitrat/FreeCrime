@@ -13,14 +13,14 @@ pub fn parse_fxt(data: &[u8]) -> Result<TextBundle> {
     let decrypted = decrypt_fxt(data);
     let mut entries = HashMap::new();
     let mut current_pos = 0;
-    
+
     while current_pos < decrypted.len() {
         let end_pos = decrypted[current_pos..]
             .iter()
             .position(|&b| b == 0)
             .map(|p| current_pos + p)
             .unwrap_or(decrypted.len());
-            
+
         let entry_data = &decrypted[current_pos..end_pos];
         if !entry_data.is_empty() {
             let s = String::from_utf8_lossy(entry_data);
@@ -30,7 +30,7 @@ pub fn parse_fxt(data: &[u8]) -> Result<TextBundle> {
         }
         current_pos = end_pos + 1;
     }
-    
+
     Ok(TextBundle { entries })
 }
 

@@ -1,4 +1,6 @@
 use super::graphics::{IndexedImage, Palette};
+use serde::Serialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct Style {
@@ -6,17 +8,17 @@ pub struct Style {
     pub side_count: usize,
     pub lid_count: usize,
     pub aux_count: usize,
-    
+
     pub animations: Vec<Animation>,
     pub palette: Palette, // Primary palette for GRY/G24
     pub remap_tables: Vec<[u8; 256]>, // For GRY
     pub remap_indices: Vec<[u8; 4]>, // For GRY (lid remap tables)
-    
+
     // G24 specific
     pub cluts: Vec<Palette>,
     pub palette_index: Vec<u16>,
-    pub tile_clut_offset: usize,
-    pub sprite_clut_offset: usize,
+    pub tile_cl_count: usize,
+    pub sprite_cl_count: usize,
 
     pub objects: Vec<ObjectInfo>,
     pub cars: Vec<CarInfo>,
@@ -34,16 +36,16 @@ impl Style {
             if anim.block as usize == map_idx && anim.which == which {
                 let total_frames = anim.frames.len() + 1;
                 let frame_idx = (ticks / std::cmp::max(1, anim.speed as u64)) % total_frames as u64;
-                
+
                 if frame_idx == 0 {
-                    break; 
+                    break;
                 } else {
                     let aux_idx = anim.frames[frame_idx as usize - 1] as usize;
                     return self.side_count + self.lid_count * 4 + aux_idx;
                 }
             }
         }
-        
+
         if which == 0 { // Side
             map_idx
         } else { // Lid
@@ -58,10 +60,10 @@ impl Style {
             FaceType::Lid => self.side_count + face_idx,
             FaceType::Aux => self.side_count + self.lid_count + face_idx,
         };
-        
+
         if block_idx >= self.blocks.len() { return vec![0; 64 * 64 * 4]; }
         let block = &self.blocks[block_idx];
-        
+
         if !self.cluts.is_empty() {
             // G24 logic
             let pal_idx_base = match face_type {
@@ -69,11 +71,11 @@ impl Style {
                 FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
                 FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count),
             };
-            
+
             let clut_idx = if pal_idx_base < self.palette_index.len() {
                 self.palette_index[pal_idx_base] as usize
             } else { 0 };
-            
+
             let palette = self.cluts.get(clut_idx).unwrap_or(&self.palette);
             block.to_rgba(palette)
         } else {
@@ -83,17 +85,59 @@ impl Style {
                     self.remap_indices[face_idx][remap] as usize
                 } else { 0 }
             } else { 0 };
-            
+
             let table = self.remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
             block.to_rgba_remapped(&self.palette, table)
         }
+    }
+
+    pub fn get_sprite_offsets(&self) -> HashMap<&'static str, usize> {
+        let mut offsets = HashMap::new();
+        let mut current = 0;
+
+        offsets.insert("SPR_ARROW", current); current += self.sprite_numbers.arrow as usize;
+        offsets.insert("SPR_DIGITS", current); current += self.sprite_numbers.digits as usize;
+        offsets.insert("SPR_BOAT", current); current += self.sprite_numbers.boat as usize;
+        offsets.insert("SPR_BOX", current); current += self.sprite_numbers.box_obj as usize;
+        offsets.insert("SPR_BUS", current); current += self.sprite_numbers.bus as usize;
+        offsets.insert("SPR_CAR", current); current += self.sprite_numbers.car as usize;
+        offsets.insert("SPR_OBJECT", current); current += self.sprite_numbers.object as usize;
+        offsets.insert("SPR_PED", current); current += self.sprite_numbers.ped as usize;
+        offsets.insert("SPR_SPEEDO", current); current += self.sprite_numbers.speedo as usize;
+        offsets.insert("SPR_TANK", current); current += self.sprite_numbers.tank as usize;
+        offsets.insert("SPR_TRAFFIC_LIGHTS", current); current += self.sprite_numbers.traffic_lights as usize;
+        offsets.insert("SPR_TRAIN", current); current += self.sprite_numbers.train as usize;
+        offsets.insert("SPR_TRDOORS", current); current += self.sprite_numbers.trdoors as usize;
+        offsets.insert("SPR_BIKE", current); current += self.sprite_numbers.bike as usize;
+        offsets.insert("SPR_TRAM", current); current += self.sprite_numbers.tram as usize;
+        offsets.insert("SPR_WBUS", current); current += self.sprite_numbers.wbus as usize;
+        offsets.insert("SPR_WCAR", current); current += self.sprite_numbers.wcar as usize;
+        offsets.insert("SPR_EX", current); current += self.sprite_numbers.ex as usize;
+        offsets.insert("SPR_TUMCAR", current); current += self.sprite_numbers.tumcar as usize;
+        offsets.insert("SPR_TUMTRUCK", current); current += self.sprite_numbers.tumtruck as usize;
+        offsets.insert("SPR_FERRY", current);
+
+        offsets
+    }
+}
+
+pub fn vehicle_type_const(vtype: u8) -> &'static str {
+    match vtype {
+        0 => "SPR_BUS",
+        3 => "SPR_BIKE",
+        4 => "SPR_CAR",
+        8 => "SPR_TRAIN",
+        9 => "SPR_TRAM",
+        13 => "SPR_BOAT",
+        14 => "SPR_TANK",
+        _ => "SPR_CAR",
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FaceType { Side, Lid, Aux }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct Animation {
     pub block: u8,
     pub which: u8, // 0 for side, 1 for lid
@@ -101,7 +145,7 @@ pub struct Animation {
     pub frames: Vec<u8>, // Indices into aux_blocks
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct ObjectInfo {
     pub width: u16,
     pub height: u16,
@@ -113,7 +157,7 @@ pub struct ObjectInfo {
     pub into: Vec<u16>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct CarInfo {
     pub width: u16,
     pub height: u16,
@@ -126,7 +170,8 @@ pub struct CarInfo {
     pub braking: i16,
     pub grip: i16,
     pub handling: i16,
-    pub remaps: [u8; 12],
+    pub remap24: Vec<[i16; 3]>,
+    pub remap8: Vec<u8>,
     pub vtype: u8,
     pub model: u8,
     pub turning: u8,
@@ -156,7 +201,7 @@ pub struct CarInfo {
     pub doors: Vec<DoorInfo>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct DoorInfo {
     pub rpx: i16,
     pub rpy: i16,
@@ -168,22 +213,65 @@ pub struct DoorInfo {
 pub struct Sprite {
     pub width: u8,
     pub height: u8,
-    pub image: Vec<u8>,
+    pub ws: u8,
+    pub size: u16,
+    pub ptr: u32,
+    pub clut: u16,
+    pub pixels: Vec<u8>, // Indexed
     pub deltas: Vec<Delta>,
+}
+
+impl Sprite {
+    pub fn apply_delta(&self, delta_idx: usize) -> Vec<u8> {
+        if delta_idx >= self.deltas.len() { return self.pixels.clone(); }
+        let mut pixels = self.pixels.clone();
+        let delta = &self.deltas[delta_idx];
+        let mut offset = 0;
+        let mut curr_x = 0;
+        let mut curr_y = 0;
+
+        while offset < delta.data.len() {
+            if offset + 3 > delta.data.len() { break; }
+            let dx = delta.data[offset];
+            let dy = delta.data[offset+1];
+            offset += 2;
+
+            curr_x += dx as i32;
+            curr_y += dy as i32;
+
+            while curr_x >= self.width as i32 {
+                curr_x -= 256;
+                curr_y += 1;
+            }
+
+            let curr_pos = curr_y * (self.width as i32) + curr_x;
+            let length = delta.data[offset] as usize;
+            offset += 1;
+
+            if offset + length > delta.data.len() { break; }
+            let data = &delta.data[offset..offset+length];
+            offset += length;
+
+            for i in 0..length {
+                let pos = (curr_pos + i as i32) as usize;
+                if pos < pixels.len() {
+                    pixels[pos] = data[i];
+                }
+            }
+            curr_x += length as i32;
+        }
+        pixels
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Delta {
-    pub commands: Vec<DeltaCommand>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct DeltaCommand {
-    pub offset: u16,
+    pub size: u16,
+    pub ptr: u32,
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct SpriteNumbers {
     pub arrow: u16,
     pub digits: u16,
@@ -217,10 +305,10 @@ mod tests {
         let mut style = Style::default();
         style.side_count = 10;
         style.lid_count = 5;
-        
+
         // Map index 1 -> Atlas index 1
         assert_eq!(style.get_animated_atlas_idx(1, 0, 0, 0), 1);
-        
+
         // Lid index 1 -> side_count + 1*4 + remap = 10 + 4 + 0 = 14
         assert_eq!(style.get_animated_atlas_idx(1, 1, 0, 0), 14);
     }
@@ -236,7 +324,7 @@ mod tests {
             speed: 5,
             frames: vec![0],
         });
-        
+
         // Frame 0
         assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 0), 10);
         // Frame 1 -> side_count + lid_count*4 + aux_idx = 100 + 200 + 0 = 300

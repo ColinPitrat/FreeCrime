@@ -22,7 +22,7 @@ struct GlyphRaw {
 pub fn parse_fon(data: &[u8]) -> Result<Font> {
     let mut cursor = Cursor::new(data);
     let header: FonHeader = cursor.read_le()?;
-    
+
     let mut glyphs = Vec::with_capacity(header.num_pictures as usize);
     for _ in 0..header.num_pictures {
         let g: GlyphRaw = cursor.read_le_args((header.height as u32,))?;
@@ -60,7 +60,7 @@ mod tests {
         let mut palette = vec![0u8; 768];
         palette[0] = 63;
         data.extend(palette);
-        
+
         let font = parse_fon(&data).unwrap();
         assert_eq!(font.glyphs.len(), 2);
         assert_eq!(font.glyphs[0].width, 2);

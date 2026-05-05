@@ -30,15 +30,15 @@ impl BlockType {
     pub fn block_type(&self) -> u8 {
         ((self.type_map & 0x70) >> 4) as u8
     }
-    
+
     pub fn is_flat(&self) -> bool {
         (self.type_map & 0x80) != 0
     }
-    
+
     pub fn slope_type(&self) -> u8 {
         ((self.type_map & 0x3F00) >> 8) as u8
     }
-    
+
     pub fn lid_rotation(&self) -> u8 {
         ((self.type_map & 0xC000) >> 14) as u8
     }
@@ -116,7 +116,7 @@ mod tests {
         let mut bt = BlockType::default();
         bt.type_map = 0 << 8; // No slope
         assert_eq!(bt.get_slope_deltas(), (0.0, 0.0, 0.0, 0.0));
-        
+
         bt.type_map = 1 << 8; // 26 deg North
         assert_eq!(bt.get_slope_deltas(), (0.5, 0.5, 1.0, 1.0));
     }

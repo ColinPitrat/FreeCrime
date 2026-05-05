@@ -5,18 +5,18 @@ pub fn parse_act(data: &[u8]) -> Result<Palette> {
     if data.len() < 768 {
         return Err(Error::Parse(format!("ACT file too small: {} bytes", data.len())));
     }
-    
+
     let mut colors = [[0u8; 3]; 256];
     for i in 0..256 {
         colors[i][0] = data[i * 3];
         colors[i][1] = data[i * 3 + 1];
         colors[i][2] = data[i * 3 + 2];
     }
-    
+
     if data.len() > 768 {
         return Err(Error::Parse(format!("ACT file has {} trailing bytes", data.len() - 768)));
     }
-    
+
     Ok(Palette { colors })
 }
 

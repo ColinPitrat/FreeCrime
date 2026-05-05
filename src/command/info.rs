@@ -33,7 +33,7 @@ pub fn execute(path: &str) -> anyhow::Result<()> {
         "GRY" | "G24" => {
             let style = parsers::gry::parse_gry(&data)?;
             println!("Style File ({}):", ext);
-            println!("  Blocks: {} ({} side, {} lid, {} aux)", 
+            println!("  Blocks: {} ({} side, {} lid, {} aux)",
                 style.blocks.len(), style.side_count, style.lid_count, style.aux_count);
             println!("  Animations: {}", style.animations.len());
             println!("  Cars: {}", style.cars.len());

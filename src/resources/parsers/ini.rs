@@ -30,18 +30,18 @@ pub enum MissionEntry {
 pub fn parse_mission(content: &str) -> Result<Mission> {
     let cleaned = remove_comments(content);
     let mut mission = Mission::default();
-    
+
     for line in cleaned.lines() {
         let line = line.trim();
         if line.is_empty() || (line.starts_with('[') && line.ends_with(']')) {
              continue;
         }
-        
+
         if let Ok((_, entry)) = parse_line_nom(line) {
             mission.entries.push(entry);
         }
     }
-    
+
     Ok(mission)
 }
 
@@ -49,7 +49,7 @@ fn remove_comments(content: &str) -> String {
     let mut result = String::with_capacity(content.len());
     let mut in_comment = 0;
     let mut chars = content.chars().peekable();
-    
+
     while let Some(c) = chars.next() {
         if c == '{' {
             in_comment += 1;
@@ -103,23 +103,23 @@ fn parse_token(input: &str) -> IResult<&str, String> {
 fn parse_line_nom(input: &str) -> IResult<&str, MissionEntry> {
     let (input, id_str) = recognize(digit1).parse(input)?;
     let (input, _) = space0(input)?;
-    
+
     if let Ok(id) = id_str.parse::<u32>() {
         // Try Command
         let (input, permanent) = map(opt((char('1'), space1)), |o| o.is_some()).parse(input)?;
         let (input, pos) = opt(terminated(parse_pos_nom, space0)).parse(input)?;
         let (input, name) = parse_token(input)?;
         let (input, params) = separated_list0(alt((char(','), char(' '), char('\t'))), preceded(space0, parse_token)).parse(input)?;
-        
+
         let params = params.into_iter().filter(|s: &String| !s.is_empty()).collect();
         return Ok((input, MissionEntry::Command { id, permanent, pos, name, params }));
     }
-    
+
     // Header
     let (input, name) = parse_token(id_str)?;
     let (input, params) = separated_list0(alt((char(','), char(' '), char('\t'))), preceded(space0, parse_token)).parse(input)?;
     let params = params.into_iter().filter(|s: &String| !s.is_empty()).collect();
-    
+
     Ok((input, MissionEntry::Header(name, params)))
 }
 
