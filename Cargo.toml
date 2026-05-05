@@ -1,0 +1,30 @@
+[package]
+name = "freecrime"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "2.0"
+clap = { version = "4.5", features = ["derive"] }
+binrw = "0.14"
+nom = "8.0"
+serde = { version = "1.0", features = ["derive"] }
+image = "0.25"
+bevy = { version = "0.15", default-features = false, features = [
+    "bevy_winit",
+    "bevy_render",
+    "bevy_pbr",
+    "bevy_asset",
+    "bevy_text",
+    "bevy_core_pipeline",
+    "bevy_ui",
+    "multi_threaded",
+    "x11",
+    "tonemapping_luts",
+    "default_font",
+    "webgpu", # Some Linux systems prefer this
+] }
+
+[dev-dependencies]
+tempfile = "3.10"
