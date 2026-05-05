@@ -21,6 +21,8 @@ There is a map viewer which allows to explore the map in 3D implemented already.
 
 ![LibertyCity like you never saw it](screenshots/viewer1.png)
 
+![Welcome to Vice City](screenshots/viewer2.png)
+
 ## Usage
 ```bash
 # Show summary of a file
