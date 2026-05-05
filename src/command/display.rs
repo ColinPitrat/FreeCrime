@@ -105,12 +105,14 @@ fn setup(
         }
     }
 
-    // Aux
+    // Aux (4 remaps each)
     for face_idx in 0..map_data.style.aux_count {
-        if current_atlas_idx >= 1024 { break; }
-        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, 0);
-        copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
-        current_atlas_idx += 1;
+        for remap in 0..4 {
+            if current_atlas_idx >= 1024 { break; }
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap);
+            copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
+            current_atlas_idx += 1;
+        }
     }
 
     let atlas_image = Image::new(

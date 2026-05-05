@@ -41,7 +41,8 @@ impl Style {
                     break;
                 } else {
                     let aux_idx = anim.frames[frame_idx as usize - 1] as usize;
-                    return self.side_count + self.lid_count * 4 + aux_idx;
+                    // Lids and Aux both have 4 slots per block in the atlas
+                    return self.side_count + self.lid_count * 4 + aux_idx * 4 + remap;
                 }
             }
         }
@@ -69,7 +70,7 @@ impl Style {
             let pal_idx_base = match face_type {
                 FaceType::Side => 4 * face_idx,
                 FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
-                FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count),
+                FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count) + remap,
             };
 
             let clut_idx = if pal_idx_base < self.palette_index.len() {
@@ -80,9 +81,11 @@ impl Style {
             block.to_rgba(palette)
         } else {
             // GRY logic
-            let table_idx = if face_type == FaceType::Lid {
-                if face_idx < self.remap_indices.len() {
-                    self.remap_indices[face_idx][remap] as usize
+            let table_idx = if face_type != FaceType::Side {
+                // For Lids and Aux, we use remap indices if available
+                let offset = if face_type == FaceType::Lid { 0 } else { self.lid_count };
+                if face_idx + offset < self.remap_indices.len() {
+                    self.remap_indices[face_idx + offset][remap] as usize
                 } else { 0 }
             } else { 0 };
 
