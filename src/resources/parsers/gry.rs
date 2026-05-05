@@ -77,7 +77,7 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     let mut cursor = Cursor::new(data);
     let header: Header = cursor.read_le()?;
     let is_g24 = header.is_g24();
-
+    
     // 1. Block Data
     let total_block_size = header.side_size() + header.lid_size() + header.aux_size();
     let block_count = total_block_size / 4096;
@@ -88,10 +88,10 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     } else {
         total_block_size
     };
-
+    
     let mut block_data = vec![0u8; actual_block_data_size as usize];
     cursor.read_exact(&mut block_data)?;
-
+    
     let mut blocks = Vec::with_capacity(block_count as usize);
     let rows = (block_count + 3) / 4;
     for row in 0..rows {
@@ -106,11 +106,11 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
             blocks.push(IndexedImage::new(64, 64, pixels));
         }
     }
-
+    
     let side_count = (header.side_size() / 4096) as usize;
     let lid_count = (header.lid_size() / 4096) as usize;
     let aux_count = (header.aux_size() / 4096) as usize;
-
+    
     // 2. Animations
     let mut animations = Vec::new();
     if header.anim_size() > 0 {
@@ -128,7 +128,7 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
             animations.push(Animation { block, which, speed, frames });
         }
     }
-
+    
     // 3. Palette / CLUT
     let palette = if is_g24 {
         let mut paged_size = header.palette_size();
@@ -157,7 +157,7 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         }
         Palette { colors }
     };
-
+    
     // 4. Remap Tables
     let mut remap_tables = Vec::new();
     if !is_g24 {
@@ -172,7 +172,7 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         for i in 0..256 { table[i] = i as u8; }
         remap_tables.push(table);
     }
-
+    
     // 5. Remap Index
     let mut remap_indices = Vec::new();
     if is_g24 {
@@ -187,18 +187,18 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
             remap_indices.push(idx);
         }
     }
-
+    
     // 6. Object Info
     let mut objects = Vec::new();
     let object_info_end = cursor.position() + header.object_info_size() as u64;
     while cursor.position() < object_info_end {
         let b: ObjectInfoRaw = cursor.read_le()?;
-        objects.push(ObjectInfo {
-            width: b.width as u16, height: b.height as u16, depth: b.depth as u16,
-            spr_num: b.spr_num, weight: b.weight, aux: b.aux, status: b.status, into: b.into
+        objects.push(ObjectInfo { 
+            width: b.width as u16, height: b.height as u16, depth: b.depth as u16, 
+            spr_num: b.spr_num, weight: b.weight, aux: b.aux, status: b.status, into: b.into 
         });
     }
-
+    
     // 7. Car Info
     let mut cars = Vec::new();
     let car_info_end = cursor.position() + header.car_size() as u64;
@@ -247,20 +247,20 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         let num_doors: i16 = cursor.read_le()?;
         let mut doors = Vec::with_capacity(num_doors as usize);
         for _ in 0..num_doors {
-            doors.push(DoorInfo {
-                rpx: cursor.read_le()?, rpy: cursor.read_le()?,
-                object: cursor.read_le()?, delta: cursor.read_le()?
+            doors.push(DoorInfo { 
+                rpx: cursor.read_le()?, rpy: cursor.read_le()?, 
+                object: cursor.read_le()?, delta: cursor.read_le()? 
             });
         }
         cars.push(CarInfo { width: width as u16, height: height as u16, depth: depth as u16, spr_num, weight, max_speed, min_speed, acceleration, braking, grip, handling, remaps, vtype, model, turning, damageable, value, cx, cy, moment, mass, thrust, adhesion_x, adhesion_y, handbrake_friction, footbrake_friction, brake_bias, turn_ratio, drive_wheel_offset, steering_wheel_offset, slide_value, hb_slide_value, convertible, engine, radio, horn, sound_func, fast_change, doors });
     }
-
+    
     // 8. Sprite Info & 9. Sprite Graphics
     let sprite_info_start = cursor.position();
     let sprite_graphics_start = sprite_info_start + header.sprite_info_size() as u64;
     cursor.seek(SeekFrom::Start(sprite_graphics_start))?;
     let _sprite_graphics_data = vec![0u8; header.sprite_graphics_size() as usize];
-
+    
     cursor.seek(SeekFrom::Start(sprite_info_start))?;
     let mut sprites = Vec::new();
     let mut info_consumed = 0u64;
@@ -285,22 +285,22 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         }
         sprites.push(Sprite { width: w, height: h, image: vec![], deltas: vec![] });
     }
-
+    
     cursor.seek(SeekFrom::Start(sprite_graphics_start + header.sprite_graphics_size() as u64))?;
-
+    
     // 10. Sprite Numbers
     let mut sprite_numbers = SpriteNumbers::default();
     if header.sprite_numbers_size() >= 42 {
         let sn: SpriteNumbersRaw = cursor.read_le()?;
         sprite_numbers = SpriteNumbers {
-            arrow: sn.arrow, digits: sn.digits, boat: sn.boat, box_obj: sn.box_obj,
-            bus: sn.bus, car: sn.car, object: sn.object, ped: sn.ped, speedo: sn.speedo,
-            tank: sn.tank, traffic_lights: sn.traffic_lights, train: sn.train,
-            trdoors: sn.trdoors, bike: sn.bike, tram: sn.tram, wbus: sn.wbus,
+            arrow: sn.arrow, digits: sn.digits, boat: sn.boat, box_obj: sn.box_obj, 
+            bus: sn.bus, car: sn.car, object: sn.object, ped: sn.ped, speedo: sn.speedo, 
+            tank: sn.tank, traffic_lights: sn.traffic_lights, train: sn.train, 
+            trdoors: sn.trdoors, bike: sn.bike, tram: sn.tram, wbus: sn.wbus, 
             wcar: sn.wcar, ex: sn.ex, tumcar: sn.tumcar, tumtruck: sn.tumtruck, ferry: sn.ferry,
         };
     }
-
+    
     if cursor.position() < data.len() as u64 {
          return Err(Error::Parse(format!("GRY file has {} trailing bytes", data.len() as u64 - cursor.position())));
     }
@@ -308,9 +308,9 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     Ok(Style { blocks, side_count, lid_count, aux_count, animations, palette, remap_tables, remap_indices, objects, cars, sprites, sprite_numbers })
 }
 
-fn read_f32_fix(r: &mut (impl Read + Seek)) -> Result<f32> {
-    let v: i32 = r.read_le()?;
-    Ok(v as f32 / 65536.0)
+fn read_f32_fix(r: &mut (impl Read + Seek)) -> Result<f32> { 
+    let v: i32 = r.read_le()?; 
+    Ok(v as f32 / 65536.0) 
 }
 
 #[cfg(test)]
