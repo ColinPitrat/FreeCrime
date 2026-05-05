@@ -1,29 +1,32 @@
 use crate::resources::types::font::Font;
 use crate::resources::types::graphics::{IndexedImage, Palette};
 use crate::resources::{Result, Error};
-use std::io::{Read, Cursor};
+use std::io::{Cursor, Read};
+use binrw::{BinRead, BinReaderExt};
+
+#[derive(BinRead)]
+#[br(little)]
+struct FonHeader {
+    num_pictures: u8,
+    height: u8,
+}
+
+#[derive(BinRead)]
+#[br(little, import(height: u32))]
+struct GlyphRaw {
+    width: u8,
+    #[br(count = width as u32 * height)]
+    pixels: Vec<u8>,
+}
 
 pub fn parse_fon(data: &[u8]) -> Result<Font> {
     let mut cursor = Cursor::new(data);
+    let header: FonHeader = cursor.read_le()?;
 
-    let mut num_pictures_buf = [0u8; 1];
-    cursor.read_exact(&mut num_pictures_buf)?;
-    let num_pictures = num_pictures_buf[0] as usize;
-
-    let mut height_buf = [0u8; 1];
-    cursor.read_exact(&mut height_buf)?;
-    let height = height_buf[0] as u32;
-
-    let mut glyphs = Vec::with_capacity(num_pictures);
-    for _ in 0..num_pictures {
-        let mut width_buf = [0u8; 1];
-        cursor.read_exact(&mut width_buf)?;
-        let width = width_buf[0] as u32;
-
-        let mut pixels = vec![0u8; (width * height) as usize];
-        cursor.read_exact(&mut pixels)?;
-
-        glyphs.push(IndexedImage::new(width, height, pixels));
+    let mut glyphs = Vec::with_capacity(header.num_pictures as usize);
+    for _ in 0..header.num_pictures {
+        let g: GlyphRaw = cursor.read_le_args((header.height as u32,))?;
+        glyphs.push(IndexedImage::new(g.width as u32, header.height as u32, g.pixels));
     }
 
     let mut palette_data = [0u8; 768];
@@ -36,21 +39,12 @@ pub fn parse_fon(data: &[u8]) -> Result<Font> {
         colors[i][2] = palette_data[i * 3 + 2];
     }
 
-    // Strictness check: check if all data was consumed
-    let current_pos = cursor.position();
-    if current_pos < data.len() as u64 {
-        return Err(Error::Parse(format!(
-            "FON file has {} trailing bytes",
-            data.len() as u64 - current_pos
-        )));
+    if cursor.position() < data.len() as u64 {
+        return Err(Error::Parse(format!("FON file has {} trailing bytes", data.len() as u64 - cursor.position())));
     }
 
-    Ok(Font {
-        glyphs,
-        palette: Palette { colors },
-    })
+    Ok(Font { glyphs, palette: Palette { colors } })
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -61,20 +55,12 @@ mod tests {
         let mut data = Vec::new();
         data.push(2); // num_pictures
         data.push(8); // height
-        
-        // Picture 1: width 2, 16 pixels
-        data.push(2);
-        data.extend(vec![1u8; 16]);
-        
-        // Picture 2: width 1, 8 pixels
-        data.push(1);
-        data.extend(vec![2u8; 8]);
-        
-        // Palette: 768 bytes
+        data.push(2); data.extend(vec![1u8; 16]); // Glyph 1
+        data.push(1); data.extend(vec![2u8; 8]); // Glyph 2
         let mut palette = vec![0u8; 768];
-        palette[0] = 63; // Red of color 0
+        palette[0] = 63;
         data.extend(palette);
-        
+
         let font = parse_fon(&data).unwrap();
         assert_eq!(font.glyphs.len(), 2);
         assert_eq!(font.glyphs[0].width, 2);

@@ -1,51 +1,85 @@
 use crate::resources::types::style::*;
 use crate::resources::types::graphics::{IndexedImage, Palette};
 use crate::resources::{Result, Error};
-use std::io::{Read, Cursor, Seek, SeekFrom};
+use std::io::{Cursor, Seek, SeekFrom, Read};
+use binrw::{BinRead, BinReaderExt};
+
+#[derive(BinRead)]
+#[br(little)]
+#[allow(dead_code)]
+enum Header {
+    #[br(magic = 290u32)]
+    Grx {
+        side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
+        palette_size: u32, remap_size: u32, remap_index_size: u32,
+        object_info_size: u32, car_size: u32, sprite_info_size: u32,
+        sprite_graphics_size: u32, sprite_numbers_size: u32,
+    },
+    #[br(magic = 325u32)]
+    Gry {
+        side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
+        palette_size: u32, remap_size: u32, remap_index_size: u32,
+        object_info_size: u32, car_size: u32, sprite_info_size: u32,
+        sprite_graphics_size: u32, sprite_numbers_size: u32,
+    },
+    #[br(magic = 336u32)]
+    G24 {
+        side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
+        clut_size: u32, tileclut_size: u32, spriteclut_size: u32,
+        newcarclut_size: u32, fontclut_size: u32, palette_index_size: u32,
+        object_info_size: u32, car_size: u32, sprite_info_size: u32,
+        sprite_graphics_size: u32, sprite_numbers_size: u32,
+    },
+}
+
+impl Header {
+    fn side_size(&self) -> u32 { match self { Header::Grx { side_size, .. } | Header::Gry { side_size, .. } | Header::G24 { side_size, .. } => *side_size } }
+    fn lid_size(&self) -> u32 { match self { Header::Grx { lid_size, .. } | Header::Gry { lid_size, .. } | Header::G24 { lid_size, .. } => *lid_size } }
+    fn aux_size(&self) -> u32 { match self { Header::Grx { aux_size, .. } | Header::Gry { aux_size, .. } | Header::G24 { aux_size, .. } => *aux_size } }
+    fn anim_size(&self) -> u32 { match self { Header::Grx { anim_size, .. } | Header::Gry { anim_size, .. } | Header::G24 { anim_size, .. } => *anim_size } }
+    fn palette_size(&self) -> u32 { match self { Header::Grx { palette_size, .. } | Header::Gry { palette_size, .. } => *palette_size, Header::G24 { clut_size, .. } => *clut_size } }
+    fn remap_size(&self) -> u32 { match self { Header::Grx { remap_size, .. } | Header::Gry { remap_size, .. } => *remap_size, Header::G24 { clut_size, .. } => *clut_size } }
+    fn remap_index_size(&self) -> u32 { match self { Header::Grx { remap_index_size, .. } | Header::Gry { remap_index_size, .. } => *remap_index_size, Header::G24 { palette_index_size, .. } => *palette_index_size } }
+    fn object_info_size(&self) -> u32 { match self { Header::Grx { object_info_size, .. } | Header::Gry { object_info_size, .. } | Header::G24 { object_info_size, .. } => *object_info_size } }
+    fn car_size(&self) -> u32 { match self { Header::Grx { car_size, .. } | Header::Gry { car_size, .. } | Header::G24 { car_size, .. } => *car_size } }
+    fn sprite_info_size(&self) -> u32 { match self { Header::Grx { sprite_info_size, .. } | Header::Gry { sprite_info_size, .. } | Header::G24 { sprite_info_size, .. } => *sprite_info_size } }
+    fn sprite_graphics_size(&self) -> u32 { match self { Header::Grx { sprite_graphics_size, .. } | Header::Gry { sprite_graphics_size, .. } | Header::G24 { sprite_graphics_size, .. } => *sprite_graphics_size } }
+    fn sprite_numbers_size(&self) -> u32 { match self { Header::Grx { sprite_numbers_size, .. } | Header::Gry { sprite_numbers_size, .. } | Header::G24 { sprite_numbers_size, .. } => *sprite_numbers_size } }
+    fn is_g24(&self) -> bool { matches!(self, Header::G24 { .. }) }
+}
+
+#[derive(BinRead)]
+#[br(little)]
+#[allow(dead_code)]
+struct ObjectInfoRaw {
+    width: i32,
+    height: i32,
+    depth: i32,
+    spr_num: u16,
+    weight: u16,
+    aux: u16,
+    status: i8,
+    num_into: u8,
+    #[br(count = num_into)]
+    into: Vec<u16>,
+}
+
+#[derive(BinRead)]
+#[br(little)]
+struct SpriteNumbersRaw {
+    arrow: u16, digits: u16, boat: u16, box_obj: u16, bus: u16, car: u16,
+    object: u16, ped: u16, speedo: u16, tank: u16, traffic_lights: u16,
+    train: u16, trdoors: u16, bike: u16, tram: u16, wbus: u16, wcar: u16,
+    ex: u16, tumcar: u16, tumtruck: u16, ferry: u16,
+}
 
 pub fn parse_gry(data: &[u8]) -> Result<Style> {
     let mut cursor = Cursor::new(data);
-    
-    let version = read_u32(&mut cursor)?;
-    if version != 325 && version != 290 && version != 336 {
-        return Err(Error::Parse(format!("Unsupported Style version: {}", version)));
-    }
-    
-    let is_g24 = version == 336;
-    
-    let side_size = read_u32(&mut cursor)?;
-    let lid_size = read_u32(&mut cursor)?;
-    let aux_size = read_u32(&mut cursor)?;
-    let anim_size = read_u32(&mut cursor)?;
-    
-    // Header differences
-    let (palette_size, remap_size, remap_index_size, object_info_size, car_size, sprite_info_size, sprite_graphics_size, sprite_numbers_size) = if is_g24 {
-        let clut_size = read_u32(&mut cursor)?;
-        let _tileclut_size = read_u32(&mut cursor)?;
-        let _spriteclut_size = read_u32(&mut cursor)?;
-        let _newcarclut_size = read_u32(&mut cursor)?;
-        let _fontclut_size = read_u32(&mut cursor)?;
-        let palette_index_size = read_u32(&mut cursor)?;
-        let object_info_size = read_u32(&mut cursor)?;
-        let car_size = read_u32(&mut cursor)?;
-        let sprite_info_size = read_u32(&mut cursor)?;
-        let sprite_graphics_size = read_u32(&mut cursor)?;
-        let sprite_numbers_size = read_u32(&mut cursor)?;
-        (clut_size, palette_index_size, 0, object_info_size, car_size, sprite_info_size, sprite_graphics_size, sprite_numbers_size)
-    } else {
-        let p_size = read_u32(&mut cursor)?;
-        let r_size = read_u32(&mut cursor)?;
-        let ri_size = read_u32(&mut cursor)?;
-        let o_size = read_u32(&mut cursor)?;
-        let c_size = read_u32(&mut cursor)?;
-        let si_size = read_u32(&mut cursor)?;
-        let sg_size = read_u32(&mut cursor)?;
-        let sn_size = read_u32(&mut cursor)?;
-        (p_size, r_size, ri_size, o_size, c_size, si_size, sg_size, sn_size)
-    };
-    
+    let header: Header = cursor.read_le()?;
+    let is_g24 = header.is_g24();
+
     // 1. Block Data
-    let total_block_size = side_size + lid_size + aux_size;
+    let total_block_size = header.side_size() + header.lid_size() + header.aux_size();
     let block_count = total_block_size / 4096;
     let actual_block_data_size = if is_g24 {
         let rem = block_count % 4;
@@ -54,10 +88,10 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     } else {
         total_block_size
     };
-    
+
     let mut block_data = vec![0u8; actual_block_data_size as usize];
     cursor.read_exact(&mut block_data)?;
-    
+
     let mut blocks = Vec::with_capacity(block_count as usize);
     let rows = (block_count + 3) / 4;
     for row in 0..rows {
@@ -72,31 +106,32 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
             blocks.push(IndexedImage::new(64, 64, pixels));
         }
     }
-    
-    let side_count = (side_size / 4096) as usize;
-    let lid_count = (lid_size / 4096) as usize;
-    let aux_count = (aux_size / 4096) as usize;
-    
+
+    let side_count = (header.side_size() / 4096) as usize;
+    let lid_count = (header.lid_size() / 4096) as usize;
+    let aux_count = (header.aux_size() / 4096) as usize;
+
     // 2. Animations
     let mut animations = Vec::new();
-    if anim_size > 0 {
-        let mut anim_cursor = Cursor::new(&data[cursor.position() as usize..cursor.position() as usize + anim_size as usize]);
-        cursor.seek(SeekFrom::Current(anim_size as i64))?;
-        let num_anims = read_u8(&mut anim_cursor)?;
+    if header.anim_size() > 0 {
+        let anim_data_slice = &data[cursor.position() as usize..cursor.position() as usize + header.anim_size() as usize];
+        cursor.seek(SeekFrom::Current(header.anim_size() as i64))?;
+        let mut anim_cursor = Cursor::new(anim_data_slice);
+        let num_anims: u8 = anim_cursor.read_le()?;
         for _ in 0..num_anims {
-            let block = read_u8(&mut anim_cursor)?;
-            let which = read_u8(&mut anim_cursor)?;
-            let speed = read_u8(&mut anim_cursor)?;
-            let frame_count = read_u8(&mut anim_cursor)?;
+            let block: u8 = anim_cursor.read_le()?;
+            let which: u8 = anim_cursor.read_le()?;
+            let speed: u8 = anim_cursor.read_le()?;
+            let frame_count: u8 = anim_cursor.read_le()?;
             let mut frames = Vec::with_capacity(frame_count as usize);
-            for _ in 0..frame_count { frames.push(read_u8(&mut anim_cursor)?); }
+            for _ in 0..frame_count { frames.push(anim_cursor.read_le::<u8>()?); }
             animations.push(Animation { block, which, speed, frames });
         }
     }
-    
+
     // 3. Palette / CLUT
     let palette = if is_g24 {
-        let mut paged_size = palette_size;
+        let mut paged_size = header.palette_size();
         if paged_size % 65536 != 0 { paged_size += 65536 - (paged_size % 65536); }
         let mut clut_data = vec![0u8; paged_size as usize];
         cursor.read_exact(&mut clut_data)?;
@@ -110,7 +145,7 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         }
         Palette { colors }
     } else {
-        let mut palette_data = vec![0u8; palette_size as usize];
+        let mut palette_data = vec![0u8; header.palette_size() as usize];
         cursor.read_exact(&mut palette_data)?;
         let mut colors = [[0u8; 3]; 256];
         for i in 0..256 {
@@ -122,11 +157,11 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         }
         Palette { colors }
     };
-    
+
     // 4. Remap Tables
     let mut remap_tables = Vec::new();
     if !is_g24 {
-        let num_remaps = remap_size / 256;
+        let num_remaps = header.remap_size() / 256;
         for _ in 0..num_remaps {
             let mut table = [0u8; 256];
             cursor.read_exact(&mut table)?;
@@ -137,66 +172,60 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         for i in 0..256 { table[i] = i as u8; }
         remap_tables.push(table);
     }
-    
+
     // 5. Remap Index
     let mut remap_indices = Vec::new();
     if is_g24 {
-        for _ in 0..remap_size / 2 {
-            let _val = read_u16(&mut cursor)?;
+        for _ in 0..header.remap_size() / 2 {
+            let _: u16 = cursor.read_le()?;
             remap_indices.push([0, 0, 0, 0]);
         }
     } else {
-        for _ in 0..remap_index_size / 4 {
+        for _ in 0..header.remap_index_size() / 4 {
             let mut idx = [0u8; 4];
             cursor.read_exact(&mut idx)?;
             remap_indices.push(idx);
         }
     }
-    
+
     // 6. Object Info
     let mut objects = Vec::new();
-    let object_info_end = cursor.position() + object_info_size as u64;
+    let object_info_end = cursor.position() + header.object_info_size() as u64;
     while cursor.position() < object_info_end {
-        let width = read_i32(&mut cursor)? as u16;
-        let height = read_i32(&mut cursor)? as u16;
-        let depth = read_i32(&mut cursor)? as u16;
-        let spr_num = read_u16(&mut cursor)?;
-        let _weight = read_u16(&mut cursor)?;
-        let _aux = read_u16(&mut cursor)?;
-        let status = read_i8(&mut cursor)?;
-        let num_into = read_u8(&mut cursor)?;
-        let mut into = Vec::with_capacity(num_into as usize);
-        for _ in 0..num_into { into.push(read_u16(&mut cursor)?); }
-        objects.push(ObjectInfo { width, height, depth, spr_num, weight: _weight, aux: _aux, status, into });
+        let b: ObjectInfoRaw = cursor.read_le()?;
+        objects.push(ObjectInfo {
+            width: b.width as u16, height: b.height as u16, depth: b.depth as u16,
+            spr_num: b.spr_num, weight: b.weight, aux: b.aux, status: b.status, into: b.into
+        });
     }
-    
+
     // 7. Car Info
     let mut cars = Vec::new();
-    let car_info_end = cursor.position() + car_size as u64;
+    let car_info_end = cursor.position() + header.car_size() as u64;
     while cursor.position() < car_info_end {
-        let width = read_i16(&mut cursor)? as u16;
-        let height = read_i16(&mut cursor)? as u16;
-        let depth = read_i16(&mut cursor)? as u16;
-        let spr_num = read_u16(&mut cursor)?;
-        let weight = read_u16(&mut cursor)?;
-        let max_speed = read_i16(&mut cursor)?;
-        let min_speed = read_i16(&mut cursor)?;
-        let acceleration = read_i16(&mut cursor)?;
-        let braking = read_i16(&mut cursor)?;
-        let grip = read_i16(&mut cursor)?;
-        let handling = read_i16(&mut cursor)?;
+        let width: i16 = cursor.read_le()?;
+        let height: i16 = cursor.read_le()?;
+        let depth: i16 = cursor.read_le()?;
+        let spr_num: u16 = cursor.read_le()?;
+        let weight: u16 = cursor.read_le()?;
+        let max_speed: i16 = cursor.read_le()?;
+        let min_speed: i16 = cursor.read_le()?;
+        let acceleration: i16 = cursor.read_le()?;
+        let braking: i16 = cursor.read_le()?;
+        let grip: i16 = cursor.read_le()?;
+        let handling: i16 = cursor.read_le()?;
         cursor.seek(SeekFrom::Current(12 * 6))?;
         let mut remaps = [0u8; 12];
         cursor.read_exact(&mut remaps)?;
-        let vtype = read_u8(&mut cursor)?;
-        let model = read_u8(&mut cursor)?;
-        let turning = read_u8(&mut cursor)?;
-        let damageable = read_u8(&mut cursor)?;
+        let vtype: u8 = cursor.read_le()?;
+        let model: u8 = cursor.read_le()?;
+        let turning: u8 = cursor.read_le()?;
+        let damageable: u8 = cursor.read_le()?;
         let mut value = [0u16; 4];
-        for v in &mut value { *v = read_u16(&mut cursor)?; }
-        let cx = read_i8(&mut cursor)?;
-        let cy = read_i8(&mut cursor)?;
-        let moment = read_i32(&mut cursor)?;
+        for v in &mut value { *v = cursor.read_le()?; }
+        let cx: i8 = cursor.read_le()?;
+        let cy: i8 = cursor.read_le()?;
+        let moment: i32 = cursor.read_le()?;
         let mass = read_f32_fix(&mut cursor)?;
         let thrust = read_f32_fix(&mut cursor)?;
         let adhesion_x = read_f32_fix(&mut cursor)?;
@@ -204,92 +233,74 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         let handbrake_friction = read_f32_fix(&mut cursor)?;
         let footbrake_friction = read_f32_fix(&mut cursor)?;
         let brake_bias = read_f32_fix(&mut cursor)?;
-        let turn_ratio = read_i16(&mut cursor)?;
-        let drive_wheel_offset = read_i16(&mut cursor)?;
-        let steering_wheel_offset = read_i16(&mut cursor)?;
+        let turn_ratio: i16 = cursor.read_le()?;
+        let drive_wheel_offset: i16 = cursor.read_le()?;
+        let steering_wheel_offset: i16 = cursor.read_le()?;
         let slide_value = read_f32_fix(&mut cursor)?;
         let hb_slide_value = read_f32_fix(&mut cursor)?;
-        let convertible = read_u8(&mut cursor)?;
-        let engine = read_u8(&mut cursor)?;
-        let radio = read_u8(&mut cursor)?;
-        let horn = read_u8(&mut cursor)?;
-        let sound_func = read_u8(&mut cursor)?;
-        let fast_change = read_u8(&mut cursor)?;
-        let num_doors = read_i16(&mut cursor)?;
+        let convertible: u8 = cursor.read_le()?;
+        let engine: u8 = cursor.read_le()?;
+        let radio: u8 = cursor.read_le()?;
+        let horn: u8 = cursor.read_le()?;
+        let sound_func: u8 = cursor.read_le()?;
+        let fast_change: u8 = cursor.read_le()?;
+        let num_doors: i16 = cursor.read_le()?;
         let mut doors = Vec::with_capacity(num_doors as usize);
         for _ in 0..num_doors {
-            doors.push(DoorInfo { rpx: read_i16(&mut cursor)?, rpy: read_i16(&mut cursor)?, object: read_i16(&mut cursor)?, delta: read_i16(&mut cursor)? });
+            doors.push(DoorInfo {
+                rpx: cursor.read_le()?, rpy: cursor.read_le()?,
+                object: cursor.read_le()?, delta: cursor.read_le()?
+            });
         }
-        cars.push(CarInfo { width, height, depth, spr_num, weight, max_speed, min_speed, acceleration, braking, grip, handling, remaps, vtype, model, turning, damageable, value, cx, cy, moment, mass, thrust, adhesion_x, adhesion_y, handbrake_friction, footbrake_friction, brake_bias, turn_ratio, drive_wheel_offset, steering_wheel_offset, slide_value, hb_slide_value, convertible, engine, radio, horn, sound_func, fast_change, doors });
+        cars.push(CarInfo { width: width as u16, height: height as u16, depth: depth as u16, spr_num, weight, max_speed, min_speed, acceleration, braking, grip, handling, remaps, vtype, model, turning, damageable, value, cx, cy, moment, mass, thrust, adhesion_x, adhesion_y, handbrake_friction, footbrake_friction, brake_bias, turn_ratio, drive_wheel_offset, steering_wheel_offset, slide_value, hb_slide_value, convertible, engine, radio, horn, sound_func, fast_change, doors });
     }
-    
+
     // 8. Sprite Info & 9. Sprite Graphics
     let sprite_info_start = cursor.position();
-    let sprite_graphics_start = sprite_info_start + sprite_info_size as u64;
+    let sprite_graphics_start = sprite_info_start + header.sprite_info_size() as u64;
     cursor.seek(SeekFrom::Start(sprite_graphics_start))?;
-    let mut sprite_graphics_data = vec![0u8; sprite_graphics_size as usize];
-    cursor.read_exact(&mut sprite_graphics_data)?;
-    
+    let _sprite_graphics_data = vec![0u8; header.sprite_graphics_size() as usize];
+
     cursor.seek(SeekFrom::Start(sprite_info_start))?;
     let mut sprites = Vec::new();
     let mut info_consumed = 0u64;
-    while info_consumed < sprite_info_size as u64 {
-        let w = read_u8(&mut cursor)?;
-        let h = read_u8(&mut cursor)?;
-        let dc = read_u8(&mut cursor)?;
-        let _v = read_u8(&mut cursor)?;
-        let _size: u64;
-        let _ptr: u64;
+    while info_consumed < header.sprite_info_size() as u64 {
+        let w: u8 = cursor.read_le()?;
+        let h: u8 = cursor.read_le()?;
+        let dc: u8 = cursor.read_le()?;
+        let _v: u8 = cursor.read_le()?;
         if is_g24 {
-            let _sz = read_u16(&mut cursor)?;
-            let _clut = read_u16(&mut cursor)?;
-            let _xoff = read_u8(&mut cursor)?;
-            let _yoff = read_u8(&mut cursor)?;
-            let _page = read_u16(&mut cursor)?;
-            _size = _sz as u64; // Placeholder
-            _ptr = 0; // Placeholder
+            let _: u16 = cursor.read_le()?;
+            let _: u16 = cursor.read_le()?;
+            let _: u8 = cursor.read_le()?;
+            let _: u8 = cursor.read_le()?;
+            let _: u16 = cursor.read_le()?;
             info_consumed += 12;
-            for _ in 0..dc { read_u32(&mut cursor)?; read_u16(&mut cursor)?; info_consumed += 6; }
+            for _ in 0..dc { let _: u32 = cursor.read_le()?; let _: u16 = cursor.read_le()?; info_consumed += 6; }
         } else {
-            let _sz = read_u16(&mut cursor)?;
-            let _p = read_u32(&mut cursor)?;
-            _size = _sz as u64;
-            _ptr = _p as u64;
+            let _: u16 = cursor.read_le()?;
+            let _: u32 = cursor.read_le()?;
             info_consumed += 10;
-            for _ in 0..dc { read_u32(&mut cursor)?; read_u16(&mut cursor)?; info_consumed += 6; }
+            for _ in 0..dc { let _: u32 = cursor.read_le()?; let _: u16 = cursor.read_le()?; info_consumed += 6; }
         }
-        // Simplified sprite loading
         sprites.push(Sprite { width: w, height: h, image: vec![], deltas: vec![] });
     }
-    
-    cursor.seek(SeekFrom::Start(sprite_graphics_start + sprite_graphics_size as u64))?;
-    
+
+    cursor.seek(SeekFrom::Start(sprite_graphics_start + header.sprite_graphics_size() as u64))?;
+
     // 10. Sprite Numbers
     let mut sprite_numbers = SpriteNumbers::default();
-    if sprite_numbers_size >= 42 {
-        sprite_numbers.arrow = read_u16(&mut cursor)?;
-        sprite_numbers.digits = read_u16(&mut cursor)?;
-        sprite_numbers.boat = read_u16(&mut cursor)?;
-        sprite_numbers.box_obj = read_u16(&mut cursor)?;
-        sprite_numbers.bus = read_u16(&mut cursor)?;
-        sprite_numbers.car = read_u16(&mut cursor)?;
-        sprite_numbers.object = read_u16(&mut cursor)?;
-        sprite_numbers.ped = read_u16(&mut cursor)?;
-        sprite_numbers.speedo = read_u16(&mut cursor)?;
-        sprite_numbers.tank = read_u16(&mut cursor)?;
-        sprite_numbers.traffic_lights = read_u16(&mut cursor)?;
-        sprite_numbers.train = read_u16(&mut cursor)?;
-        sprite_numbers.trdoors = read_u16(&mut cursor)?;
-        sprite_numbers.bike = read_u16(&mut cursor)?;
-        sprite_numbers.tram = read_u16(&mut cursor)?;
-        sprite_numbers.wbus = read_u16(&mut cursor)?;
-        sprite_numbers.wcar = read_u16(&mut cursor)?;
-        sprite_numbers.ex = read_u16(&mut cursor)?;
-        sprite_numbers.tumcar = read_u16(&mut cursor)?;
-        sprite_numbers.tumtruck = read_u16(&mut cursor)?;
-        sprite_numbers.ferry = read_u16(&mut cursor)?;
+    if header.sprite_numbers_size() >= 42 {
+        let sn: SpriteNumbersRaw = cursor.read_le()?;
+        sprite_numbers = SpriteNumbers {
+            arrow: sn.arrow, digits: sn.digits, boat: sn.boat, box_obj: sn.box_obj,
+            bus: sn.bus, car: sn.car, object: sn.object, ped: sn.ped, speedo: sn.speedo,
+            tank: sn.tank, traffic_lights: sn.traffic_lights, train: sn.train,
+            trdoors: sn.trdoors, bike: sn.bike, tram: sn.tram, wbus: sn.wbus,
+            wcar: sn.wcar, ex: sn.ex, tumcar: sn.tumcar, tumtruck: sn.tumtruck, ferry: sn.ferry,
+        };
     }
-    
+
     if cursor.position() < data.len() as u64 {
          return Err(Error::Parse(format!("GRY file has {} trailing bytes", data.len() as u64 - cursor.position())));
     }
@@ -297,13 +308,10 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     Ok(Style { blocks, side_count, lid_count, aux_count, animations, palette, remap_tables, remap_indices, objects, cars, sprites, sprite_numbers })
 }
 
-fn read_u8(r: &mut impl Read) -> Result<u8> { let mut b = [0u8; 1]; r.read_exact(&mut b)?; Ok(b[0]) }
-fn read_i8(r: &mut impl Read) -> Result<i8> { Ok(read_u8(r)? as i8) }
-fn read_u16(r: &mut impl Read) -> Result<u16> { let mut b = [0u8; 2]; r.read_exact(&mut b)?; Ok(u16::from_le_bytes(b)) }
-fn read_i16(r: &mut impl Read) -> Result<i16> { let mut b = [0u8; 2]; r.read_exact(&mut b)?; Ok(i16::from_le_bytes(b)) }
-fn read_u32(r: &mut impl Read) -> Result<u32> { let mut b = [0u8; 4]; r.read_exact(&mut b)?; Ok(u32::from_le_bytes(b)) }
-fn read_i32(r: &mut impl Read) -> Result<i32> { let mut b = [0u8; 4]; r.read_exact(&mut b)?; Ok(i32::from_le_bytes(b)) }
-fn read_f32_fix(r: &mut impl Read) -> Result<f32> { let v = read_i32(r)?; Ok(v as f32 / 65536.0) }
+fn read_f32_fix(r: &mut (impl Read + Seek)) -> Result<f32> {
+    let v: i32 = r.read_le()?;
+    Ok(v as f32 / 65536.0)
+}
 
 #[cfg(test)]
 mod tests {

@@ -10,10 +10,10 @@ use std::fs;
 pub fn execute(map_path: &str, style_path: &str) -> anyhow::Result<()> {
     let map_data = fs::read(map_path)?;
     let style_data = fs::read(style_path)?;
-    
+
     let map = parsers::cmp::parse_cmp(&map_data)?;
     let style = parsers::gry::parse_gry(&style_data)?;
-    
+
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -28,7 +28,7 @@ pub fn execute(map_path: &str, style_path: &str) -> anyhow::Result<()> {
         .add_systems(Startup, setup)
         .add_systems(Update, (camera_movement_system, animation_system))
         .run();
-        
+
     Ok(())
 }
 
@@ -60,10 +60,10 @@ fn setup(
     let atlas_tiles_per_row = 32;
     let atlas_size = tile_size * atlas_tiles_per_row;
     let mut data = vec![0u8; atlas_size * atlas_size * 4];
-    
-    // Direct mapping: Atlas index 0 matches map index 0 (if used)
+
+    // Direct mapping: Map Index 0 maps to Atlas Index 0
     let mut current_atlas_idx = 0;
-    
+
     // Sides
     for block in &map_data.style.blocks[0..map_data.style.side_count] {
         if current_atlas_idx >= 1024 { break; }
@@ -71,7 +71,7 @@ fn setup(
         copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
         current_atlas_idx += 1;
     }
-    
+
     // Lids (4 remaps each)
     let lid_start = map_data.style.side_count;
     for lid_idx in 0..map_data.style.lid_count {
@@ -86,7 +86,7 @@ fn setup(
             current_atlas_idx += 1;
         }
     }
-    
+
     // Aux
     let lid_end = lid_start + map_data.style.lid_count;
     for block in &map_data.style.blocks[lid_end..lid_end + map_data.style.aux_count] {
@@ -95,7 +95,7 @@ fn setup(
         copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
         current_atlas_idx += 1;
     }
-    
+
     let atlas_image = Image::new(
         Extent3d { width: atlas_size as u32, height: atlas_size as u32, depth_or_array_layers: 1 },
         TextureDimension::D2,
@@ -104,16 +104,16 @@ fn setup(
         bevy::render::render_asset::RenderAssetUsages::default(),
     );
     let atlas_handle = images.add(atlas_image);
-    
+
     let material_handle = materials.add(StandardMaterial {
         base_color_texture: Some(atlas_handle),
         unlit: true,
         alpha_mode: AlphaMode::Mask(0.5),
-        cull_mode: None, 
+        cull_mode: None,
         ..default()
     });
 
-    // 2. Generate Map Meshes (16x16 chunks)
+    // 2. Generate Map Meshes
     for cy in 0..16 {
         for cx in 0..16 {
             if let Some((mesh, has_animations)) = generate_chunk_mesh(&map_data, cx, cy, atlas_tiles_per_row, 0) {
@@ -158,22 +158,22 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
     let mut uvs = Vec::new();
     let mut indices = Vec::new();
     let mut has_animations = false;
-    
+
     for y in 0..16 {
         for x in 0..16 {
             let world_x = cx * 16 + x;
             let world_y = cy * 16 + y;
             let col = &map_data.map.grid[world_y * 256 + world_x];
-            
+
             for z in 0..6 {
                 let bt_idx = col.levels[z];
                 if bt_idx == 0 { continue; }
                 let bt = &map_data.map.block_types[bt_idx as usize];
                 let fx = x as f32;
-                let fy = -(z as f32); 
+                let fy = -(z as f32);
                 let fz = y as f32;
                 let (d1, d2, d3, d4) = bt.get_slope_deltas();
-                
+
                 // Lid
                 if bt.lid != 0 {
                     if map_data.style.is_block_animated(bt.lid as usize, 1) { has_animations = true; }
@@ -183,12 +183,12 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                         [Vec3::new(fx, fy - d1, fz), Vec3::new(fx+1.0, fy - d2, fz), Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx, fy - d4, fz+1.0)],
                         Vec3::Y, atlas_idx, tiles_per_row, bt.lid_rotation(), false, [0.0, 0.0, 1.0, 1.0]);
                 }
-                
+
                 // Sides (Flat blocks only render West and North faces)
                 let is_flat = bt.is_flat();
                 let flip_tb = (bt.type_map_ext & 0x20) == 0;
                 let flip_lr = (bt.type_map_ext & 0x40) != 0;
-                
+
                 // Left Wall (West, NEG_X)
                 if bt.left != 0 {
                     if map_data.style.is_block_animated(bt.left as usize, 0) { has_animations = true; }
@@ -224,9 +224,9 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
             }
         }
     }
-    
+
     if positions.is_empty() { return None; }
-    
+
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, bevy::render::render_asset::RenderAssetUsages::default());
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
@@ -239,13 +239,13 @@ fn add_face(pos: &mut Vec<Vec3>, norm: &mut Vec<Vec3>, uvs: &mut Vec<Vec2>, indi
     let start_idx = pos.len() as u32;
     pos.extend_from_slice(&vertices);
     for _ in 0..4 { norm.push(n); }
-    
+
     let tiles_f = tiles_per_row as f32;
     let u_min = (tile_idx % tiles_per_row) as f32 / tiles_f;
     let v_min = (tile_idx / tiles_per_row) as f32 / tiles_f;
     let u_max = u_min + 1.0 / tiles_f;
     let v_max = v_min + 1.0 / tiles_f;
-    
+
     let (mut u0, mut u1) = (u_min, u_max);
     if flip_h { std::mem::swap(&mut u0, &mut u1); }
 
@@ -257,7 +257,7 @@ fn add_face(pos: &mut Vec<Vec3>, norm: &mut Vec<Vec3>, uvs: &mut Vec<Vec2>, indi
     ];
     face_uvs.rotate_right(rot as usize % 4);
     uvs.extend_from_slice(&face_uvs);
-    
+
     indices.extend_from_slice(&[start_idx, start_idx + 1, start_idx + 2, start_idx, start_idx + 2, start_idx + 3]);
 }
 
@@ -270,9 +270,20 @@ fn camera_movement_system(
     let mut direction = Vec3::ZERO;
     let speed = 80.0;
 
-    let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-    let h_forward = -Vec3::new(yaw.sin(), 0.0, yaw.cos());
-    let h_right = Vec3::new(yaw.cos(), 0.0, -yaw.sin());
+    // Movement using Forward/Right projected onto XZ
+    let forward = transform.forward();
+    let right = transform.right();
+    let mut h_forward = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
+    let mut h_right = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
+
+    // Fallback if looking straight down
+    if h_forward.length_squared() < 0.001 {
+        let up = transform.up();
+        h_forward = Vec3::new(up.x, 0.0, up.z).normalize_or_zero();
+    }
+    if h_right.length_squared() < 0.001 {
+        h_right = Vec3::new(h_forward.z, 0.0, -h_forward.x);
+    }
 
     if keyboard_input.pressed(KeyCode::KeyW) { direction += h_forward; }
     if keyboard_input.pressed(KeyCode::KeyS) { direction -= h_forward; }
@@ -282,12 +293,17 @@ fn camera_movement_system(
     if keyboard_input.pressed(KeyCode::PageDown) { direction -= Vec3::Y; }
 
     transform.translation += direction.normalize_or_zero() * speed * time.delta_secs();
-    
+
     let rot_speed = 1.5;
+    // Arrows Left/Right -> Yaw (Global Y)
     if keyboard_input.pressed(KeyCode::ArrowLeft) { transform.rotate_y(rot_speed * time.delta_secs()); }
     if keyboard_input.pressed(KeyCode::ArrowRight) { transform.rotate_y(-rot_speed * time.delta_secs()); }
+
+    // Arrows Up/Down -> Pitch (Local X)
     if keyboard_input.pressed(KeyCode::ArrowUp) { transform.rotate_local_x(rot_speed * time.delta_secs()); }
     if keyboard_input.pressed(KeyCode::ArrowDown) { transform.rotate_local_x(-rot_speed * time.delta_secs()); }
+
+    // Q/E -> Roll (Local Z)
     if keyboard_input.pressed(KeyCode::KeyQ) { transform.rotate_local_z(rot_speed * time.delta_secs()); }
     if keyboard_input.pressed(KeyCode::KeyE) { transform.rotate_local_z(-rot_speed * time.delta_secs()); }
 }
@@ -302,7 +318,7 @@ fn animation_system(
     let new_ticks = (time.elapsed_secs() * 20.0).round() as u64;
     if ticks.0 == new_ticks { return; }
     ticks.0 = new_ticks;
-    
+
     for (chunk, mesh_handle) in query.iter_mut() {
         if chunk.has_animations {
             if let Some((new_mesh, _)) = generate_chunk_mesh(&map_data, chunk.cx, chunk.cy, 32, ticks.0) {
