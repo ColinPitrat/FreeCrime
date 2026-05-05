@@ -301,20 +301,9 @@ fn camera_movement_system(
     let mut direction = Vec3::ZERO;
     let speed = 80.0;
 
-    // Movement using Forward/Right projected onto XZ
-    let forward = transform.forward();
-    let right = transform.right();
-    let mut h_forward = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
-    let mut h_right = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
-
-    // Fallback if looking straight down
-    if h_forward.length_squared() < 0.001 {
-        let up = transform.up();
-        h_forward = Vec3::new(up.x, 0.0, up.z).normalize_or_zero();
-    }
-    if h_right.length_squared() < 0.001 {
-        h_right = Vec3::new(h_forward.z, 0.0, -h_forward.x);
-    }
+    let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+    let h_forward = -Vec3::new(yaw.sin(), 0.0, yaw.cos());
+    let h_right = Vec3::new(yaw.cos(), 0.0, -yaw.sin());
 
     if keyboard_input.pressed(KeyCode::KeyW) { direction += h_forward; }
     if keyboard_input.pressed(KeyCode::KeyS) { direction -= h_forward; }
