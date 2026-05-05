@@ -81,7 +81,7 @@ The slope type is:
 | bits 0-2  | traffic light bits 1,2,3 (3 bit code for traffic light info)
 | bits 3-4  | remap  (0, 1, 2, 3)
 | bit 5     | flip top & bottom faces ( 0 = yes, 1=no)
-| bit 6     | flip left & right faces ( 1 = yes, 0=no)
+| bit 6     | flip left & right faces ( 0 = yes, 1=no)
 | bit 7     | railway ( 1 = yes, 0 = no )
 
 `left, right, top, bottom, lid`: these bytes store the face information - each byte stores a value which indicates the correct graphic square to use for that face. Multiply by 64x64 to get the offset into the face graphics file. For left, right, top and bottom, this is the block side graphics. For lid, it is the block lid graphics.  A value of zero indicates no face.
