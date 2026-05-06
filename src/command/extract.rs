@@ -24,17 +24,17 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
             fs::create_dir_all(&blocks_dir)?;
 
             for i in 0..style.side_count {
-                let rgba = style.get_face_rgba(i, FaceType::Side, 0);
+                let rgba = style.get_face_rgba(i, FaceType::Side, 0, false);
                 save_png(&blocks_dir.join(format!("side_{:03}.png", i)), 64, 64, &rgba)?;
             }
             for i in 0..style.lid_count {
                 for r in 0..4 {
-                    let rgba = style.get_face_rgba(i, FaceType::Lid, r);
+                    let rgba = style.get_face_rgba(i, FaceType::Lid, r, false);
                     save_png(&blocks_dir.join(format!("lid_{:03}_remap_{}.png", i, r)), 64, 64, &rgba)?;
                 }
             }
             for i in 0..style.aux_count {
-                let rgba = style.get_face_rgba(i, FaceType::Aux, 0);
+                let rgba = style.get_face_rgba(i, FaceType::Aux, 0, false);
                 save_png(&blocks_dir.join(format!("aux_{:03}.png", i)), 64, 64, &rgba)?;
             }
 
@@ -53,14 +53,15 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
                     &style.palette
                 };
 
-                let rgba = IndexedImage::new(spr.width as u32, spr.height as u32, spr.pixels.clone()).to_rgba(palette);
+                let rgba = IndexedImage::new(spr.width as u32, spr.height as u32, spr.pixels.clone()).to_rgba(palette, true);
                 save_png(&sprites_dir.join(format!("sprite_{:04}.png", i)), spr.width as u32, spr.height as u32, &rgba)?;
 
                 for (j, _delta) in spr.deltas.iter().enumerate() {
                     let d_pixels = spr.apply_delta(j);
-                    let d_rgba = IndexedImage::new(spr.width as u32, spr.height as u32, d_pixels).to_rgba(palette);
+                    let d_rgba = IndexedImage::new(spr.width as u32, spr.height as u32, d_pixels).to_rgba(palette, true);
                     save_png(&sprites_dir.join(format!("sprite_{:04}_delta_{:03}.png", i, j)), spr.width as u32, spr.height as u32, &d_rgba)?;
                 }
+
             }
 
             // 3. Car Remaps
@@ -102,7 +103,7 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
                                 freecrime::resources::types::graphics::Palette { colors }
                             };
 
-                            let rgba = IndexedImage::new(spr.width as u32, spr.height as u32, spr.pixels.clone()).to_rgba(&remap_palette);
+                            let rgba = IndexedImage::new(spr.width as u32, spr.height as u32, spr.pixels.clone()).to_rgba(&remap_palette, true);
                             save_png(&car_remaps_dir.join(format!("car_{:03}_remap_{:02}.png", c, r_idx)), spr.width as u32, spr.height as u32, &rgba)?;
                         }
                     }
@@ -120,7 +121,7 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
             let font = parsers::fon::parse_fon(&data)?;
             fs::create_dir_all(out)?;
             for (i, glyph) in font.glyphs.iter().enumerate() {
-                let rgba = glyph.to_rgba(&font.palette);
+                let rgba = glyph.to_rgba(&font.palette, true);
                 save_png(&Path::new(out).join(format!("glyph_{:03}.png", i)), glyph.width, glyph.height, &rgba)?;
             }
             println!("Extracted {} glyphs to {}", font.glyphs.len(), out);

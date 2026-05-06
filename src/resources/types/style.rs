@@ -60,7 +60,7 @@ impl Style {
     }
 
     /// Gets the RGBA pixels for a block face, handling both GRY and G24 palette systems.
-    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize) -> Vec<u8> {
+    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, lids_transparent: bool) -> Vec<u8> {
         let block_idx = match face_type {
             FaceType::Side => face_idx,
             FaceType::Lid => self.side_count + face_idx,
@@ -69,6 +69,9 @@ impl Style {
 
         if block_idx >= self.blocks.len() { return vec![0; 64 * 64 * 4]; }
         let block = &self.blocks[block_idx];
+
+        // Use external flag for Lids/Aux, but always use transparency for Sides.
+        let transparent = if face_type == FaceType::Side { true } else { lids_transparent };
 
         if !self.cluts.is_empty() {
             // G24 logic
@@ -91,7 +94,7 @@ impl Style {
             } else { 0 };
 
             let palette = self.cluts.get(clut_idx).unwrap_or(&self.palette);
-            block.to_rgba(palette)
+            block.to_rgba(palette, transparent)
         } else {
             // GRY logic
             let table_idx = match face_type {
@@ -107,11 +110,9 @@ impl Style {
             };
 
             let table = self.remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
-            block.to_rgba_remapped(&self.palette, table)
+            block.to_rgba_remapped(&self.palette, table, transparent)
         }
     }
-
-
     pub fn get_sprite_offsets(&self) -> HashMap<&'static str, usize> {
         let mut offsets = HashMap::new();
         let mut current = 0;
