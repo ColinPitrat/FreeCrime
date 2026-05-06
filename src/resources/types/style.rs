@@ -24,10 +24,6 @@ pub struct Style {
     pub cars: Vec<CarInfo>,
     pub sprites: Vec<Sprite>,
     pub sprite_numbers: SpriteNumbers,
-
-    /// Mapping from Aux block index to the index of a Lid block that triggers it.
-    /// Used to inherit shading (remaps) for animation frames.
-    pub aux_to_lid: HashMap<usize, usize>,
 }
 
 impl Style {
@@ -58,7 +54,6 @@ impl Style {
             self.side_count + map_idx * 4 + remap
         }
     }
-
     /// Gets the RGBA pixels for a block face, handling both GRY and G24 palette systems.
     pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, lids_transparent: bool) -> Vec<u8> {
         let block_idx = match face_type {
@@ -78,15 +73,7 @@ impl Style {
             let pal_idx_base = match face_type {
                 FaceType::Side => 4 * face_idx,
                 FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
-                FaceType::Aux => {
-                    // Use triggering Lid's remap if available, otherwise fallback to own index
-                    let trigger_lid = self.aux_to_lid.get(&face_idx).cloned();
-                    if let Some(lid_idx) = trigger_lid {
-                        4 * (lid_idx + self.side_count) + remap
-                    } else {
-                        4 * (face_idx + self.side_count + self.lid_count) + remap
-                    }
-                }
+                FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count) + remap,
             };
 
             let clut_idx = if pal_idx_base < self.palette_index.len() {
@@ -100,19 +87,14 @@ impl Style {
             let table_idx = match face_type {
                 FaceType::Side => 0,
                 FaceType::Lid => self.remap_indices.get(face_idx).map(|r| r[remap] as usize).unwrap_or(0),
-                FaceType::Aux => {
-                    // Animation frames MUST use the triggering Lid's remap table
-                    let trigger_lid = self.aux_to_lid.get(&face_idx).cloned();
-                    if let Some(lid_idx) = trigger_lid {
-                        self.remap_indices.get(lid_idx).map(|r| r[remap] as usize).unwrap_or(0)
-                    } else { 0 }
-                }
+                FaceType::Aux => self.remap_indices.get(face_idx + self.lid_count).map(|r| r[remap] as usize).unwrap_or(0),
             };
 
             let table = self.remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
             block.to_rgba_remapped(&self.palette, table, transparent)
         }
     }
+
     pub fn get_sprite_offsets(&self) -> HashMap<&'static str, usize> {
         let mut offsets = HashMap::new();
         let mut current = 0;
@@ -344,13 +326,13 @@ mod tests {
             block: 10,
             which: 0,
             speed: 5,
-            frames: vec![0, 1], // count 2
+            frames: vec![0, 1], // frame_count = 2 in file
         });
 
         // Loop length 2: [Base, Aux 0]
         // Frame 0 -> returns Base #10
         assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 0), 10);
-        // Frame 1 -> returns Aux #0 (side_count + lid_count*4 + 0*4 + 0 = 300)
+        // Frame 1 at tick 5 -> returns Aux #0 + remap (100 + 50*4 + 0*4 + 0 = 300)
         assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 5), 300);
         // Frame 0 again at tick 10
         assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 10), 10);

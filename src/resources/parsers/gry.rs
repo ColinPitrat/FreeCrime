@@ -119,7 +119,6 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
 
     // 2. Animations
     let mut animations = Vec::new();
-    let mut aux_to_lid = std::collections::HashMap::new();
     if header.anim_size() > 0 {
         let anim_data_slice = &data[cursor.position() as usize..cursor.position() as usize + header.anim_size() as usize];
         cursor.seek(SeekFrom::Current(header.anim_size() as i64))?;
@@ -134,17 +133,11 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
             if anim_cursor.position() + frame_count as u64 > header.anim_size() as u64 { break; }
             let mut frames = Vec::with_capacity(frame_count as usize);
             for _ in 0..frame_count {
-                let aux_idx: u8 = anim_cursor.read_le()?;
-                frames.push(aux_idx);
-                // Animation is usually for a Lid (which=1)
-                if which == 1 {
-                    aux_to_lid.insert(aux_idx as usize, block as usize);
-                }
+                frames.push(anim_cursor.read_le::<u8>()?);
             }
             animations.push(Animation { block, which, speed, frames });
         }
     }
-
     // 3. Palette / CLUT
     let mut cluts = Vec::new();
     let mut primary_palette = Palette::default();
@@ -385,9 +378,9 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         cluts, palette_index,
         tile_cl_count: if is_g24 { (header.tileclut_size() / 1024) as usize } else { 0 },
         sprite_cl_count: if is_g24 { (header.spriteclut_size() / 1024) as usize } else { 0 },
-        objects, cars, sprites, sprite_numbers, aux_to_lid
-        })
-        }
+        objects, cars, sprites, sprite_numbers
+    })
+}
 fn read_f32_fix(r: &mut (impl Read + Seek)) -> Result<f32> {
     let v: i32 = r.read_le()?;
     Ok(v as f32 / 65536.0)
