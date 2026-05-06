@@ -133,13 +133,48 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
             let raw_data = fs::read(raw_path)?;
             let indices = parsers::sdt::parse_sdt(&data)?;
             fs::create_dir_all(out)?;
+            let filename = Path::new(path).file_stem().and_then(|s| s.to_str()).unwrap_or("sound");
+            let is_level000 = filename.to_uppercase() == "LEVEL000";
+
             for (i, record) in indices.iter().enumerate() {
                 if record.size > 0 {
-                    let sample = &raw_data[record.offset as usize..(record.offset + record.size) as usize];
-                    fs::write(Path::new(out).join(format!("sample_{:03}.raw", i)), sample)?;
+                    let end = (record.offset + record.size) as usize;
+                    if end > raw_data.len() {
+                        println!("Warning: record {} out of bounds", i);
+                        continue;
+                    }
+                    let sample_bytes = &raw_data[record.offset as usize..end];
+                    let wav_path = Path::new(out).join(format!("{}_{:04}.wav", filename, i));
+
+                    let bits = if is_level000 { 16 } else { 8 };
+                    let channels = if is_level000 && i <= 2 { 2 } else { 1 };
+
+                    let spec = hound::WavSpec {
+                        channels,
+                        sample_rate: record.frequency,
+                        bits_per_sample: bits,
+                        sample_format: hound::SampleFormat::Int,
+                    };
+
+                    let mut writer = hound::WavWriter::create(wav_path, spec)?;
+                    if bits == 16 {
+                        // 16-bit signed little-endian
+                        for chunk in sample_bytes.chunks_exact(2) {
+                            let s = i16::from_le_bytes([chunk[0], chunk[1]]);
+                            writer.write_sample(s)?;
+                        }
+                    } else {
+                        // 8-bit WAV stores samples as unsigned (0 to 255).
+                        // Hound's write_sample(i8) expects signed (-128 to 127) and adds 128 when writing.
+                        // We subtract 128 here so that the final WAV contains the bit-perfect original data.
+                        for &b in sample_bytes {
+                            writer.write_sample(b.wrapping_sub(128) as i8)?;
+                        }
+                    }
+                    writer.finalize()?;
                 }
             }
-            println!("Extracted {} samples to {}", indices.len(), out);
+            println!("Extracted {} samples as WAV to {}", indices.len(), out);
         }
         _ => println!("Extraction not supported for extension: {}", ext),
     }
