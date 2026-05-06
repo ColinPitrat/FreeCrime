@@ -23,6 +23,8 @@ There is a map viewer which allows to explore the map in 3D implemented already.
 
 ![Welcome to Vice City](screenshots/viewer2.png)
 
+![That's London baby](screenshots/viewer3.png)
+
 ## Usage
 ```bash
 # Show summary of a file
