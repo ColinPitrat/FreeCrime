@@ -72,7 +72,7 @@ impl Block {
     }
 
     pub fn flip_left_right(&self) -> bool {
-        (self.type_map_ext & 0x40) != 0
+        (self.type_map_ext & 0x40) == 0
     }
 
     pub fn get_slope_deltas(&self) -> (f32, f32, f32, f32) {
