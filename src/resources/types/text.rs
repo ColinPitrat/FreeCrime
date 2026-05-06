@@ -5,6 +5,12 @@ pub struct TextBundle {
     pub entries: HashMap<String, String>,
 }
 
+impl Default for TextBundle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TextBundle {
     pub fn new() -> Self {
         Self {

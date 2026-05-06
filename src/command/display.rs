@@ -19,7 +19,7 @@ pub fn execute(
     let map = parsers::cmp::parse_cmp(&map_data)?;
     let style = parsers::gry::parse_gry(&style_data)?;
 
-    let pos = initial_pos_arr.map(|a| Vec3::from_array(a)).unwrap_or(Vec3::new(128.0, 150.0, 128.0));
+    let pos = initial_pos_arr.map(Vec3::from_array).unwrap_or(Vec3::new(128.0, 150.0, 128.0));
     let rot = initial_rot_arr.map(|a| Quat::from_euler(
         EulerRot::YXZ,
         a[0].to_radians(),
@@ -259,6 +259,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
     Some((mesh, has_animations))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_face(pos: &mut Vec<Vec3>, norm: &mut Vec<Vec3>, uvs: &mut Vec<Vec2>, indices: &mut Vec<u32>, vertices: [Vec3; 4], n: Vec3, tile_idx: usize, tiles_per_row: usize, rot: u8, flip_h: bool, v_weights: [f32; 4]) {
     let start_idx = pos.len() as u32;
     pos.extend_from_slice(&vertices);
@@ -343,6 +344,7 @@ fn animation_system(
 
     for (chunk, mesh_handle) in query.iter() {
         if chunk.has_animations {
+            #[allow(clippy::collapsible_if)]
             if let Some((new_mesh, _)) = generate_chunk_mesh(&map_data, chunk.cx, chunk.cy, 32, ticks.0) {
                 if let Some(mesh) = meshes.get_mut(mesh_handle.id()) {
                     *mesh = new_mesh;

@@ -99,7 +99,7 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     }
 
     let mut blocks = Vec::with_capacity(block_count as usize);
-    let rows = (block_count + 3) / 4;
+    let rows = block_count.div_ceil(4);
     for row in 0..rows {
         for col in 0..4 {
             let block_idx = row * 4 + col;
@@ -144,6 +144,7 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
             animations.push(Animation { block, which, speed, frames });
         }
     }
+
     // 3. Palette / CLUT
     let mut cluts = Vec::new();
     let mut primary_palette = Palette::default();
@@ -151,21 +152,21 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     if is_g24 {
         let clut_size = header.palette_size();
         let mut paged_size = clut_size;
-        if paged_size % 65536 != 0 { paged_size += 65536 - (paged_size % 65536); }
+        if !paged_size.is_multiple_of(65536) { paged_size += 65536 - (paged_size % 65536); }
         let mut clut_data_raw = vec![0u8; paged_size as usize];
         cursor.read_exact(&mut clut_data_raw)?;
 
-        let num_cluts = (clut_data_raw.len() / 1024) as usize;
+        let num_cluts = clut_data_raw.len() / 1024;
         cluts = Vec::with_capacity(num_cluts);
         for pal in 0..num_cluts {
             let off = 65536 * (pal / 64) + 4 * (pal % 64);
             let mut colors = [[0u8; 3]; 256];
-            for col in 0..256 {
+            for (col, item) in colors.iter_mut().enumerate() {
                 let coff = col * 256 + off;
                 if coff + 2 < clut_data_raw.len() {
-                    colors[col][2] = clut_data_raw[coff];
-                    colors[col][1] = clut_data_raw[coff + 1];
-                    colors[col][0] = clut_data_raw[coff + 2];
+                    item[2] = clut_data_raw[coff];
+                    item[1] = clut_data_raw[coff + 1];
+                    item[0] = clut_data_raw[coff + 2];
                 }
             }
             cluts.push(Palette { colors });
@@ -198,9 +199,10 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         }
     } else {
         let mut table = [0u8; 256];
-        for i in 0..256 { table[i] = i as u8; }
+        for (i, item) in table.iter_mut().enumerate() { *item = i as u8; }
         remap_tables.push(table);
     }
+
 
     // 5. Remap Index (GRY) or Palette Index (G24)
     let mut remap_indices = Vec::new();

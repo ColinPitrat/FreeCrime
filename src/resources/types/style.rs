@@ -273,10 +273,10 @@ impl Sprite {
             let data = &delta.data[offset..offset+length];
             offset += length;
 
-            for i in 0..length {
+            for (i, &item) in data.iter().enumerate().take(length) {
                 let pos = (curr_pos + i as i32) as usize;
                 if pos < pixels.len() {
-                    pixels[pos] = data[i];
+                    pixels[pos] = item;
                 }
             }
             curr_x += length as i32;

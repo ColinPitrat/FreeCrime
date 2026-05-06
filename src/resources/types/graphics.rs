@@ -12,7 +12,7 @@ impl Default for Palette {
 impl Palette {
     pub fn apply_hls_offset(&self, h_off: i16, l_off: i16, s_off: i16) -> Self {
         let mut new_colors = [[0u8; 3]; 256];
-        for i in 0..256 {
+        for (i, new_color) in new_colors.iter_mut().enumerate() {
             let r = self.colors[i][0] as f32 / 255.0;
             let g = self.colors[i][1] as f32 / 255.0;
             let b = self.colors[i][2] as f32 / 255.0;
@@ -26,9 +26,9 @@ impl Palette {
             let ns = (s + s_off as f32 / 100.0).clamp(0.0, 1.0);
 
             let (nr, ng, nb) = hls_to_rgb(nh, nl, ns);
-            new_colors[i][0] = (nr * 255.0) as u8;
-            new_colors[i][1] = (ng * 255.0) as u8;
-            new_colors[i][2] = (nb * 255.0) as u8;
+            new_color[0] = (nr * 255.0) as u8;
+            new_color[1] = (ng * 255.0) as u8;
+            new_color[2] = (nb * 255.0) as u8;
         }
         Self { colors: new_colors }
     }

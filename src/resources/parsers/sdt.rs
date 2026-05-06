@@ -11,7 +11,7 @@ pub struct SoundIndex {
 }
 
 pub fn parse_sdt(data: &[u8]) -> Result<Vec<SoundIndex>> {
-    if data.len() % 12 != 0 {
+    if !data.len().is_multiple_of(12) {
         return Err(Error::Parse(format!("SDT file size {} is not a multiple of 12", data.len())));
     }
 

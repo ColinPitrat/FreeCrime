@@ -48,9 +48,9 @@ pub fn parse_mission(content: &str) -> Result<Mission> {
 fn remove_comments(content: &str) -> String {
     let mut result = String::with_capacity(content.len());
     let mut in_comment = 0;
-    let mut chars = content.chars().peekable();
+    let chars = content.chars();
 
-    while let Some(c) = chars.next() {
+    for c in chars {
         if c == '{' {
             in_comment += 1;
         } else if c == '}' {

@@ -40,8 +40,8 @@ fn decrypt_fxt(data: &[u8]) -> Vec<u8> {
         let shift_val = (99u128 << i) as u8;
         decrypted[i] = decrypted[i].wrapping_sub(shift_val).wrapping_sub(1);
     }
-    for i in 8..decrypted.len() {
-        decrypted[i] = decrypted[i].wrapping_sub(1);
+    for item in decrypted.iter_mut().skip(8) {
+        *item = item.wrapping_sub(1);
     }
     decrypted
 }
