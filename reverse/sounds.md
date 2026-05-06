@@ -29,7 +29,7 @@ Sounds 0, 1 and 2 are stereo. All the others are mono.
  - 0012: typewriter? (typing name in character selection menu)
  - 0013: typewriter? (pressing reset on character in character selection menu)
  - 0014: honk (increasing sound in Options)
- - 0015: short vinyl scrach? (usage unknown)
+ - 0015: short vinyl scratch? (usage unknown)
 
 ## LEVEL001
 
