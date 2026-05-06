@@ -1,5 +1,7 @@
 # FreeCrime
 
+[![Linux](https://github.com/ColinPitrat/FreeCrime/actions/workflows/linux.yml/badge.svg)](https://github.com/ColinPitrat/FreeCrime/actions/workflows/linux.yml)
+
 FreeCrime is a clone of [GTA 1](https://en.wikipedia.org/wiki/Grand_Theft_Auto_(video_game))
 (Grand Theft Auto) written in [Rust](https://en.wikipedia.org/wiki/Rust_(programming_language))
 using [Bevy](https://bevy.org/) with the objectives of:
