@@ -34,6 +34,12 @@ Most of the information in this page comes from https://www.moddb.com/downloads/
 | sprite_graphics | sprite_graphics_size | |
 | sprite_numbers | sprite_numbers_size | |
 
+## About graphics
+
+In GTA1, the color 0 in the palette is always associated to transparency.
+In London extension pack, it seems that for lids, there is not transparent
+color.
+
 ## Block Data
 
 The block face data is stored in 3 areas :
