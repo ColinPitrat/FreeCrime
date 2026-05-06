@@ -1,22 +1,42 @@
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Map {
     pub style_index: u8,
     pub sample_index: u8,
-    pub grid: Vec<Column>, // 256 * 256
-    pub block_types: Vec<BlockType>,
+    pub width: usize,
+    pub height: usize,
+    pub depth: usize,
+    pub blocks: Vec<Option<Block>>,
     pub objects: Vec<MapObject>,
     pub routes: Vec<Route>,
     pub locations: MapLocations,
     pub nav_zones: Vec<NavZone>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Column {
-    pub levels: [u16; 6], // Indices into block_types. 0 is highest, 5 is lowest.
+impl Map {
+    pub fn new(width: usize, height: usize, depth: usize) -> Self {
+        Self {
+            width,
+            height,
+            depth,
+            blocks: vec![None; width * height * depth],
+            ..Default::default()
+        }
+    }
+
+    pub fn get_block(&self, x: usize, y: usize, z: usize) -> Option<&Block> {
+        if x >= self.width || y >= self.height || z >= self.depth { return None; }
+        self.blocks[z * self.width * self.height + y * self.width + x].as_ref()
+    }
+
+    pub fn set_block(&mut self, x: usize, y: usize, z: usize, block: Block) {
+        if x < self.width && y < self.height && z < self.depth {
+            self.blocks[z * self.width * self.height + y * self.width + x] = Some(block);
+        }
+    }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct BlockType {
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Block {
     pub type_map: u16,
     pub type_map_ext: u8,
     pub left: u8,
@@ -26,7 +46,7 @@ pub struct BlockType {
     pub lid: u8,
 }
 
-impl BlockType {
+impl Block {
     pub fn block_type(&self) -> u8 {
         ((self.type_map & 0x70) >> 4) as u8
     }
@@ -41,6 +61,18 @@ impl BlockType {
 
     pub fn lid_rotation(&self) -> u8 {
         ((self.type_map & 0xC000) >> 14) as u8
+    }
+
+    pub fn lid_remap(&self) -> u8 {
+        (self.type_map_ext & 0x18) >> 3
+    }
+
+    pub fn flip_top_bottom(&self) -> bool {
+        (self.type_map_ext & 0x20) == 0
+    }
+
+    pub fn flip_left_right(&self) -> bool {
+        (self.type_map_ext & 0x40) != 0
     }
 
     pub fn get_slope_deltas(&self) -> (f32, f32, f32, f32) {
@@ -71,7 +103,7 @@ impl BlockType {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct MapObject {
     pub x: u16,
     pub y: u16,
@@ -83,13 +115,13 @@ pub struct MapObject {
     pub roll: u16,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Route {
     pub route_type: u8,
     pub points: Vec<(u8, u8, u8)>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct MapLocations {
     pub police: Vec<(u8, u8, u8)>,
     pub hospital: Vec<(u8, u8, u8)>,
@@ -97,7 +129,7 @@ pub struct MapLocations {
     pub unused: Vec<Vec<(u8, u8, u8)>>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct NavZone {
     pub x: u8,
     pub y: u8,
@@ -112,12 +144,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_block_type_slope_deltas() {
-        let mut bt = BlockType::default();
-        bt.type_map = 0 << 8; // No slope
-        assert_eq!(bt.get_slope_deltas(), (0.0, 0.0, 0.0, 0.0));
+    fn test_block_slope_deltas() {
+        let mut b = Block::default();
+        b.type_map = 0 << 8; // No slope
+        assert_eq!(b.get_slope_deltas(), (0.0, 0.0, 0.0, 0.0));
 
-        bt.type_map = 1 << 8; // 26 deg North
-        assert_eq!(bt.get_slope_deltas(), (0.5, 0.5, 1.0, 1.0));
+        b.type_map = 1 << 8; // 26 deg North
+        assert_eq!(b.get_slope_deltas(), (0.5, 0.5, 1.0, 1.0));
     }
 }

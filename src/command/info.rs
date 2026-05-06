@@ -18,15 +18,15 @@ pub fn execute(path: &str) -> anyhow::Result<()> {
         "CMP" => {
             let map = parsers::cmp::parse_cmp(&data)?;
             println!("CMP Map File:");
+            println!("  Dimensions: {}x{}x{}", map.width, map.height, map.depth);
             println!("  Style Index: {}", map.style_index);
-            println!("  Block Types: {}", map.block_types.len());
             println!("  Objects: {}", map.objects.len());
             println!("  Routes: {}", map.routes.len());
             let mut max_side = 0;
             let mut max_lid = 0;
-            for bt in &map.block_types {
-                max_side = max_side.max(bt.left).max(bt.right).max(bt.top).max(bt.bottom);
-                max_lid = max_lid.max(bt.lid);
+            for block in map.blocks.iter().flatten() {
+                max_side = max_side.max(block.left).max(block.right).max(block.top).max(block.bottom);
+                max_lid = max_lid.max(block.lid);
             }
             println!("  Max Tile Indices: side={}, lid={}", max_side, max_lid);
         }

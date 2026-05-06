@@ -78,7 +78,7 @@ pub fn parse_cmp(data: &[u8]) -> Result<Map> {
         block_types_raw.push(cursor.read_le()?);
     }
 
-    let block_types: Vec<BlockType> = block_types_raw.into_iter().map(|b| BlockType {
+    let block_types: Vec<Block> = block_types_raw.into_iter().map(|b| Block {
         type_map: b.type_map,
         type_map_ext: b.type_map_ext,
         left: b.left,
@@ -88,12 +88,19 @@ pub fn parse_cmp(data: &[u8]) -> Result<Map> {
         lid: b.lid,
     }).collect();
 
-    // Resolve Columns
-    let mut grid = Vec::with_capacity(256 * 256);
-    for &offset in &base_offsets {
+    // Initialize 3D Map
+    let mut map = Map::new(256, 256, 6);
+    map.style_index = header.style_index;
+    map.sample_index = header.sample_index;
+
+    // Resolve Columns into 3D Grid
+    for (idx, &offset) in base_offsets.iter().enumerate() {
         if offset as usize >= column_data.len() {
              return Err(Error::Parse(format!("Column offset out of bounds: {}", offset)));
         }
+        let x = idx % 256;
+        let y = idx / 256;
+
         let mut col_cursor = Cursor::new(&column_data[..]);
         col_cursor.set_position(offset as u64);
 
@@ -102,13 +109,13 @@ pub fn parse_cmp(data: &[u8]) -> Result<Map> {
             return Err(Error::Parse(format!("Invalid column height: {}", height)));
         }
 
-        let mut levels = [0u16; 6];
         let num_blocks = 6 - height as usize;
         for i in 0..num_blocks {
-            levels[height as usize + i] = col_cursor.read_le()?;
+            let bt_idx: u16 = col_cursor.read_le()?;
+            if let Some(bt) = (bt_idx > 0).then(|| block_types.get(bt_idx as usize)).flatten() {
+                map.set_block(x, y, height as usize + i, bt.clone());
+            }
         }
-
-        grid.push(Column { levels });
     }
 
     // Object Pos
@@ -125,6 +132,7 @@ pub fn parse_cmp(data: &[u8]) -> Result<Map> {
             roll: b.roll,
         });
     }
+    map.objects = objects;
 
     // Routes
     let route_end = cursor.position() + header.route_size as u64;
@@ -138,6 +146,7 @@ pub fn parse_cmp(data: &[u8]) -> Result<Map> {
         }
         routes.push(Route { route_type, points });
     }
+    map.routes = routes;
 
     // Locations
     let mut locations_raw = [0u8; 108];
@@ -157,7 +166,7 @@ pub fn parse_cmp(data: &[u8]) -> Result<Map> {
     let fire = read_locs()?;
     let unused3 = read_locs()?;
 
-    let locations = MapLocations {
+    map.locations = MapLocations {
         police,
         hospital,
         fire,
@@ -171,22 +180,14 @@ pub fn parse_cmp(data: &[u8]) -> Result<Map> {
         let b: NavZoneRaw = cursor.read_le()?;
         nav_zones.push(NavZone { x: b.x, y: b.y, width: b.width, height: b.height, sample: b.sample, name: b.name });
     }
+    map.nav_zones = nav_zones;
 
     // Strictness check
     if cursor.position() < data.len() as u64 {
         return Err(Error::Parse(format!("CMP file has {} trailing bytes", data.len() as u64 - cursor.position())));
     }
 
-    Ok(Map {
-        style_index: header.style_index,
-        sample_index: header.sample_index,
-        grid,
-        block_types,
-        objects,
-        routes,
-        locations,
-        nav_zones,
-    })
+    Ok(map)
 }
 
 #[cfg(test)]
@@ -226,7 +227,7 @@ mod tests {
 
         let map = parse_cmp(&data).unwrap();
         assert_eq!(map.style_index, 1);
-        assert_eq!(map.grid.len(), 256*256);
-        assert_eq!(map.block_types.len(), 1);
+        assert_eq!(map.width, 256);
+        assert_eq!(map.get_block(0,0,0), None);
     }
 }
