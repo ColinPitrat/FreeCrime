@@ -26,7 +26,7 @@ jobs:
 
     - name: Check trailing whitespace
       run: |
-        find src -name \*.rs -exec sed -i 's/  *\$//' '{}' \;
+        find src -name \*.rs -exec sed -i 's/  *$//' '{}' \;
         git diff --exit-code
 
     - name: Check
