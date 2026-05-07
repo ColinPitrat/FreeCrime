@@ -203,7 +203,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 if block.lid != 0 {
                     if map_data.style.is_block_animated(block.lid as usize, 1) { has_animations = true; }
                     let remap = block.lid_remap() as usize;
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.lid as usize, 1, remap, ticks);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.lid as usize, 1, remap, ticks, map_data.gta_version);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx, fy - d1, fz), Vec3::new(fx+1.0, fy - d2, fz), Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx, fy - d4, fz+1.0)],
                         Vec3::Y, atlas_idx, tiles_per_row, block.lid_rotation(), false, [0.0, 0.0, 1.0, 1.0]);
@@ -217,7 +217,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 // Left Wall (West, NEG_X)
                 if block.left != 0 {
                     if map_data.style.is_block_animated(block.left as usize, 0) { has_animations = true; }
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.left as usize, 0, 0, ticks);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.left as usize, 0, 0, ticks, map_data.gta_version);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx, fy - d4, fz+1.0), Vec3::new(fx, fy - d1, fz), Vec3::new(fx, fy-1.0, fz), Vec3::new(fx, fy-1.0, fz+1.0)],
                         Vec3::NEG_X, atlas_idx, tiles_per_row, 0, flip_lr, [d4, d1, 1.0, 1.0]);
@@ -225,7 +225,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 // Right Wall (East, POS_X)
                 if block.right != 0 && !is_flat {
                     if map_data.style.is_block_animated(block.right as usize, 0) { has_animations = true; }
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.right as usize, 0, 0, ticks);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.right as usize, 0, 0, ticks, map_data.gta_version);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx+1.0, fy - d2, fz), Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz)],
                         Vec3::X, atlas_idx, tiles_per_row, 0, flip_lr, [d2, d3, 1.0, 1.0]);
@@ -233,7 +233,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 // Top Wall (North, NEG_Z)
                 if block.top != 0 {
                     if map_data.style.is_block_animated(block.top as usize, 0) { has_animations = true; }
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.top as usize, 0, 0, ticks);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.top as usize, 0, 0, ticks, map_data.gta_version);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx, fy - d1, fz), Vec3::new(fx+1.0, fy - d2, fz), Vec3::new(fx+1.0, fy-1.0, fz), Vec3::new(fx, fy-1.0, fz)],
                         Vec3::NEG_Z, atlas_idx, tiles_per_row, 0, flip_tb, [d1, d2, 1.0, 1.0]);
@@ -241,7 +241,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 // Bottom Wall (South, POS_Z)
                 if block.bottom != 0 && !is_flat {
                     if map_data.style.is_block_animated(block.bottom as usize, 0) { has_animations = true; }
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.bottom as usize, 0, 0, ticks);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.bottom as usize, 0, 0, ticks, map_data.gta_version);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx, fy - d4, fz+1.0), Vec3::new(fx, fy-1.0, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz+1.0)],
                         Vec3::Z, atlas_idx, tiles_per_row, 0, flip_tb, [d3, d4, 1.0, 1.0]);

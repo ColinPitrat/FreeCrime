@@ -25,9 +25,10 @@ pub struct Style {
     pub sprites: Vec<Sprite>,
     pub sprite_numbers: SpriteNumbers,
 
-    /// Mapping from Aux block index to the index of a Lid block that triggers it.
-    /// Used to inherit shading (remaps) for animation frames in London.
-    pub aux_to_lid: HashMap<usize, usize>,
+    /// Mapping from Aux block index to the (block_idx, which) that triggers it.
+    /// which: 0 for Side, 1 for Lid.
+    /// Used to inherit shading (remaps) for animation frames.
+    pub aux_to_trigger: HashMap<usize, (usize, u8)>,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
@@ -42,10 +43,17 @@ impl Style {
         self.animations.iter().any(|a| a.block as usize == map_idx && a.which == which)
     }
 
-    pub fn get_animated_atlas_idx(&self, map_idx: usize, which: u8, remap: usize, ticks: u64) -> usize {
+    pub fn get_animated_atlas_idx(&self, map_idx: usize, which: u8, remap: usize, ticks: u64, version: GtaVersion) -> usize {
         for anim in &self.animations {
             if anim.block as usize == map_idx && anim.which == which {
-                let total_frames = anim.frames.len();
+                // London Water Lid (fc=11) is an 11-frame loop including the base.
+                // NYC Side 100 (fc=1) is a 2-frame loop (Base + 1 Aux).
+                let total_frames = if version == GtaVersion::London && which == 1 {
+                    anim.frames.len()
+                } else {
+                    anim.frames.len() + 1
+                };
+
                 if total_frames == 0 { break; }
                 let frame_idx = (ticks / std::cmp::max(1, anim.speed as u64)) % total_frames as u64;
 
@@ -86,7 +94,7 @@ impl Style {
         };
 
         if !self.cluts.is_empty() {
-            // G24 logic
+            // G24 logic: Global Indexing (Sides -> Lids -> Aux)
             let pal_idx_base = match face_type {
                 FaceType::Side => 4 * face_idx,
                 FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
@@ -94,8 +102,8 @@ impl Style {
                     // London fix: Aux blocks have un-shaded entries in mapping table.
                     // Inherit triggering Lid's palette index to ensure shaded animations.
                     if version == GtaVersion::London {
-                        let trigger_lid = self.aux_to_lid.get(&face_idx).cloned();
-                        if let Some(lid_idx) = trigger_lid {
+                        let trigger_lid = self.aux_to_trigger.get(&face_idx).cloned();
+                        if let Some((lid_idx, _)) = trigger_lid {
                             4 * (lid_idx + self.side_count) + remap
                         } else {
                             4 * (face_idx + self.side_count + self.lid_count) + remap
@@ -113,21 +121,19 @@ impl Style {
             let palette = self.cluts.get(clut_idx).unwrap_or(&self.palette);
             block.to_rgba(palette, transparent)
         } else {
-            // GRY logic
+            // GRY logic: Local Indexing (Lids start at 0). Sides are usually not remapped.
             let table_idx = match face_type {
                 FaceType::Side => 0,
                 FaceType::Lid => self.remap_indices.get(face_idx).map(|r| r[remap] as usize).unwrap_or(0),
                 FaceType::Aux => {
                     // London fix: Aux blocks have un-shaded entries in mapping table.
                     // Inherit triggering Lid's palette index to ensure shaded animations.
-                    if version == GtaVersion::London {
-                        let trigger_lid = self.aux_to_lid.get(&face_idx).cloned();
-                        if let Some(lid_idx) = trigger_lid {
-                            self.remap_indices.get(lid_idx).map(|r| r[remap] as usize).unwrap_or(0)
-                        } else { 0 }
-                    } else {
-                        self.remap_indices.get(face_idx + self.lid_count).map(|r| r[remap] as usize).unwrap_or(0)
-                    }
+                    let trigger = self.aux_to_trigger.get(&face_idx).cloned();
+                    if let Some((idx, which)) = trigger {
+                         if which == 1 { // Lid
+                             self.remap_indices.get(idx).map(|r| r[remap] as usize).unwrap_or(0)
+                         } else { 0 }
+                    } else { 0 }
                 }
             };
 
@@ -352,10 +358,10 @@ mod tests {
         style.lid_count = 5;
 
         // Map index 1 -> Atlas index 1
-        assert_eq!(style.get_animated_atlas_idx(1, 0, 0, 0), 1);
+        assert_eq!(style.get_animated_atlas_idx(1, 0, 0, 0, GtaVersion::Gta1), 1);
 
         // Lid index 1 -> side_count + 1*4 + remap = 10 + 4 + 0 = 14
-        assert_eq!(style.get_animated_atlas_idx(1, 1, 0, 0), 14);
+        assert_eq!(style.get_animated_atlas_idx(1, 1, 0, 0, GtaVersion::Gta1), 14);
     }
 
     #[test]
@@ -365,17 +371,20 @@ mod tests {
         style.lid_count = 50;
         style.animations.push(Animation {
             block: 10,
-            which: 0,
+            which: 1, // Lid
             speed: 5,
-            frames: vec![0, 1], // frame_count = 2 in file
+            frames: vec![0, 1], // fc=2
         });
 
-        // Loop length 2: [Base, Aux 0]
-        // Frame 0 -> returns Base #10
-        assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 0), 10);
-        // Frame 1 at tick 5 -> returns Aux #0 + remap (100 + 50*4 + 0*4 + 0 = 300)
-        assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 5), 300);
-        // Frame 0 again at tick 10
-        assert_eq!(style.get_animated_atlas_idx(10, 0, 0, 10), 10);
+        // Gta1 Lid: total_frames = fc + 1 = 3 ([Base, Aux 0, Aux 1])
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 0, GtaVersion::Gta1), 100 + 10 * 4);
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 5, GtaVersion::Gta1), 100 + 50 * 4 + 0 * 4);
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 10, GtaVersion::Gta1), 100 + 50 * 4 + 1 * 4);
+
+        // London Lid: total_frames = fc = 2 ([Base, Aux 0])
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 0, GtaVersion::London), 100 + 10 * 4);
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 5, GtaVersion::London), 100 + 50 * 4 + 0 * 4);
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 10, GtaVersion::London), 100 + 10 * 4);
     }
+
 }
