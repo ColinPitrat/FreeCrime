@@ -9,6 +9,8 @@ struct Cli {
     command: Commands,
 }
 
+use freecrime::resources::types::style::GtaVersion;
+
 #[derive(Subcommand)]
 enum Commands {
     /// Show information about a game file
@@ -40,9 +42,9 @@ enum Commands {
         /// Initial camera rotation in degrees (YAW,PITCH,ROLL)
         #[arg(long)]
         camera_rotation: Option<String>,
-        /// Enable transparency for lid and auxiliary blocks
-        #[arg(long, default_value_t = false)]
-        no_lids_transparency: bool,
+        /// Target GTA version for specific style compatibility
+        #[arg(long, value_enum, default_value_t = GtaVersion::Gta1)]
+        gta_version: GtaVersion,
     },
 }
 
@@ -59,10 +61,10 @@ fn main() -> anyhow::Result<()> {
         Commands::Overview { cmp } => {
             command::overview::execute(&cmp).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
-        Commands::Display { cmp, gry, camera_position, camera_rotation, no_lids_transparency } => {
+        Commands::Display { cmp, gry, camera_position, camera_rotation, gta_version } => {
             let pos = parse_vec3(camera_position)?;
             let rot = parse_vec3(camera_rotation)?;
-            command::display::execute(&cmp, &gry, pos, rot, !no_lids_transparency).map_err(|e| anyhow::anyhow!("{}", e))?;
+            command::display::execute(&cmp, &gry, pos, rot, gta_version).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
     }
 

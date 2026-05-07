@@ -24,6 +24,17 @@ pub struct Style {
     pub cars: Vec<CarInfo>,
     pub sprites: Vec<Sprite>,
     pub sprite_numbers: SpriteNumbers,
+
+    /// Mapping from Aux block index to the index of a Lid block that triggers it.
+    /// Used to inherit shading (remaps) for animation frames in London.
+    pub aux_to_lid: HashMap<usize, usize>,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
+pub enum GtaVersion {
+    Gta1,
+    London,
+    Gta2,
 }
 
 impl Style {
@@ -54,8 +65,9 @@ impl Style {
             self.side_count + map_idx * 4 + remap
         }
     }
+
     /// Gets the RGBA pixels for a block face, handling both GRY and G24 palette systems.
-    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, lids_transparent: bool) -> Vec<u8> {
+    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, version: GtaVersion) -> Vec<u8> {
         let block_idx = match face_type {
             FaceType::Side => face_idx,
             FaceType::Lid => self.side_count + face_idx,
@@ -65,15 +77,33 @@ impl Style {
         if block_idx >= self.blocks.len() { return vec![0; 64 * 64 * 4]; }
         let block = &self.blocks[block_idx];
 
-        // Use external flag for Lids/Aux, but always use transparency for Sides.
-        let transparent = if face_type == FaceType::Side { true } else { lids_transparent };
+        // London map lids/aux are opaque (index 0 is a visible color like black).
+        // Standard GTA 1 and GTA 2 tiles support index 0 transparency.
+        // Sides (walls) always support index 0 transparency for fences/decorations.
+        let transparent = match face_type {
+            FaceType::Side => true,
+            FaceType::Lid | FaceType::Aux => version != GtaVersion::London,
+        };
 
         if !self.cluts.is_empty() {
             // G24 logic
             let pal_idx_base = match face_type {
                 FaceType::Side => 4 * face_idx,
                 FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
-                FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count) + remap,
+                FaceType::Aux => {
+                    // London fix: Aux blocks have un-shaded entries in mapping table.
+                    // Inherit triggering Lid's palette index to ensure shaded animations.
+                    if version == GtaVersion::London {
+                        let trigger_lid = self.aux_to_lid.get(&face_idx).cloned();
+                        if let Some(lid_idx) = trigger_lid {
+                            4 * (lid_idx + self.side_count) + remap
+                        } else {
+                            4 * (face_idx + self.side_count + self.lid_count) + remap
+                        }
+                    } else {
+                        4 * (face_idx + self.side_count + self.lid_count) + remap
+                    }
+                }
             };
 
             let clut_idx = if pal_idx_base < self.palette_index.len() {
@@ -87,7 +117,18 @@ impl Style {
             let table_idx = match face_type {
                 FaceType::Side => 0,
                 FaceType::Lid => self.remap_indices.get(face_idx).map(|r| r[remap] as usize).unwrap_or(0),
-                FaceType::Aux => self.remap_indices.get(face_idx + self.lid_count).map(|r| r[remap] as usize).unwrap_or(0),
+                FaceType::Aux => {
+                    // London fix: Aux blocks have un-shaded entries in mapping table.
+                    // Inherit triggering Lid's palette index to ensure shaded animations.
+                    if version == GtaVersion::London {
+                        let trigger_lid = self.aux_to_lid.get(&face_idx).cloned();
+                        if let Some(lid_idx) = trigger_lid {
+                            self.remap_indices.get(lid_idx).map(|r| r[remap] as usize).unwrap_or(0)
+                        } else { 0 }
+                    } else {
+                        self.remap_indices.get(face_idx + self.lid_count).map(|r| r[remap] as usize).unwrap_or(0)
+                    }
+                }
             };
 
             let table = self.remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);

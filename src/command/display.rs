@@ -7,12 +7,14 @@ use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use std::fs;
 
+use crate::GtaVersion;
+
 pub fn execute(
     map_path: &str,
     style_path: &str,
     initial_pos_arr: Option<[f32; 3]>,
     initial_rot_arr: Option<[f32; 3]>,
-    lids_transparency: bool,
+    gta_version: GtaVersion,
 ) -> anyhow::Result<()> {
     let map_data = fs::read(map_path)?;
     let style_data = fs::read(style_path)?;
@@ -37,7 +39,7 @@ pub fn execute(
             ..default()
         }))
         .insert_resource(ClearColor(Color::srgb(0.1, 0.1, 0.2)))
-        .insert_resource(MapData { map, style, lids_transparency })
+        .insert_resource(MapData { map, style, gta_version })
         .insert_resource(AnimationTicks(0))
         .insert_resource(InitialCamera { pos, rot })
         .add_systems(Startup, setup)
@@ -51,7 +53,7 @@ pub fn execute(
 struct MapData {
     map: Map,
     style: Style,
-    lids_transparency: bool,
+    gta_version: GtaVersion,
 }
 
 #[derive(Resource)]
@@ -92,7 +94,7 @@ fn setup(
     // Sides
     for face_idx in 0..map_data.style.side_count {
         if current_atlas_idx >= 1024 { break; }
-        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0, false);
+        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0, map_data.gta_version);
         copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
         current_atlas_idx += 1;
     }
@@ -101,7 +103,7 @@ fn setup(
     for face_idx in 0..map_data.style.lid_count {
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, map_data.lids_transparency);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, map_data.gta_version);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }
@@ -111,7 +113,7 @@ fn setup(
     for face_idx in 0..map_data.style.aux_count {
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap, map_data.lids_transparency);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap, map_data.gta_version);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }
