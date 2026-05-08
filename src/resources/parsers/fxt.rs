@@ -9,6 +9,8 @@ use nom::{
     multi::many1,
 };
 
+/// Parses an FXT text file.
+/// These files are encrypted and contain null-terminated strings in the format `[KEY]Value`.
 pub fn parse_fxt(data: &[u8]) -> Result<TextBundle> {
     let decrypted = decrypt_fxt(data);
     let mut entries = HashMap::new();
@@ -34,18 +36,22 @@ pub fn parse_fxt(data: &[u8]) -> Result<TextBundle> {
     Ok(TextBundle { entries })
 }
 
+/// Standard GTA 1 decryption algorithm for FXT files.
 fn decrypt_fxt(data: &[u8]) -> Vec<u8> {
     let mut decrypted = data.to_vec();
+    // The first 8 bytes have a position-dependent shift
     for i in 0..std::cmp::min(8, decrypted.len()) {
         let shift_val = (99u128 << i) as u8;
         decrypted[i] = decrypted[i].wrapping_sub(shift_val).wrapping_sub(1);
     }
+    // All subsequent bytes are just decremented by 1
     for item in decrypted.iter_mut().skip(8) {
         *item = item.wrapping_sub(1);
     }
     decrypted
 }
 
+/// Internal nom parser for extracting `[KEY]VALUE` pairs.
 fn parse_entry_nom(input: &str) -> IResult<&str, (String, String)> {
     let (input, key) = delimited(char('['), recognize(many1(none_of("]"))), char(']')).parse(input)?;
     let (input, value) = map(rest, |s: &str| s.to_string()).parse(input)?;

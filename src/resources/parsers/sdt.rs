@@ -2,14 +2,20 @@ use crate::resources::{Result, Error};
 use std::io::Cursor;
 use binrw::{BinRead, BinReaderExt};
 
+/// Index entry into a RAW sound file.
 #[derive(Debug, Clone, PartialEq, BinRead)]
 #[br(little)]
 pub struct SoundIndex {
+    /// Offset of the sample in the .RAW file.
     pub offset: u32,
+    /// Size of the sample in bytes.
     pub size: u32,
+    /// Sampling frequency (e.g. 11025 or 22050).
     pub frequency: u32,
 }
 
+/// Parses an SDT sound index file.
+/// These files contain a list of sample offsets and frequencies for an associated .RAW file.
 pub fn parse_sdt(data: &[u8]) -> Result<Vec<SoundIndex>> {
     if !data.len().is_multiple_of(12) {
         return Err(Error::Parse(format!("SDT file size {} is not a multiple of 12", data.len())));

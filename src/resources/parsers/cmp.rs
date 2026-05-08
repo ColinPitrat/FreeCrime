@@ -56,22 +56,27 @@ struct NavZoneRaw {
     name: String,
 }
 
+/// Primary parser for CMP map files.
+/// These files define the 3D block grid, object placements, and navigation data.
 pub fn parse_cmp(data: &[u8]) -> Result<Map> {
     let mut cursor = Cursor::new(data);
 
     let header: CmpHeader = cursor.read_le()?;
 
     // Base (Offsets into column data)
+    // The base section contains 256*256 offsets, one for each (x, y) column.
     let mut base_offsets = Vec::with_capacity(256 * 256);
     for _ in 0..256 * 256 {
         base_offsets.push(cursor.read_le::<u32>()?);
     }
 
     // Column Data
+    // Stores the compressed vertical stacks of blocks for each (x, y) location.
     let mut column_data = vec![0u8; header.column_size as usize];
     cursor.read_exact(&mut column_data)?;
 
     // Block Types
+    // The dictionary of unique block configurations referenced by the columns.
     let num_block_types = header.block_size / 8;
     let mut block_types_raw: Vec<BlockTypeRaw> = Vec::with_capacity(num_block_types as usize);
     for _ in 0..num_block_types {
@@ -94,6 +99,8 @@ pub fn parse_cmp(data: &[u8]) -> Result<Map> {
     map.sample_index = header.sample_index;
 
     // Resolve Columns into 3D Grid
+    // We map the CMP "height" (empty layers from the top) to our z-coordinate.
+    // z=0 is the top-most layer, z=5 is the bottom-most.
     for (idx, &offset) in base_offsets.iter().enumerate() {
         if offset as usize >= column_data.len() {
              return Err(Error::Parse(format!("Column offset out of bounds: {}", offset)));
@@ -229,5 +236,35 @@ mod tests {
         assert_eq!(map.style_index, 1);
         assert_eq!(map.width, 256);
         assert_eq!(map.get_block(0,0,0), None);
+    }
+
+    #[test]
+    fn test_parse_cmp_with_block() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&331u32.to_le_bytes()); // Version
+        data.extend(vec![0u8; 4]); // indices/reserved
+        data.extend(vec![0u8; 8]); // route/obj sizes
+        data.extend_from_slice(&4u32.to_le_bytes()); // column size (height + 1 block)
+        data.extend_from_slice(&16u32.to_le_bytes()); // block size (2 types)
+        data.extend_from_slice(&0u32.to_le_bytes()); // nav size
+
+        for _ in 0..256*256 { data.extend_from_slice(&0u32.to_le_bytes()); }
+
+        data.extend_from_slice(&5u16.to_le_bytes()); // Height 5 (1 block at bottom)
+        data.extend_from_slice(&1u16.to_le_bytes()); // Use block type 1
+
+        // Type 0 (Empty)
+        data.extend(vec![0u8; 8]);
+        // Type 1
+        data.extend_from_slice(&0u16.to_le_bytes()); // tm
+        data.extend(vec![0, 10, 0, 0, 0, 0]); // West face = 10
+
+        data.extend(vec![0u8; 108]); // Locations
+
+        let map = parse_cmp(&data).unwrap();
+        // Layer 5 should have the block
+        assert_eq!(map.get_block(0, 0, 5).unwrap().left, 10);
+        // Layer 0 should be empty
+        assert_eq!(map.get_block(0, 0, 0), None);
     }
 }

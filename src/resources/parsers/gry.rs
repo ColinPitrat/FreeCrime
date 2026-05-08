@@ -4,10 +4,12 @@ use crate::resources::{Result, Error};
 use std::io::{Cursor, Seek, SeekFrom, Read};
 use binrw::{BinRead, BinReaderExt};
 
+/// Internal header structure for style files, supporting both GTA1 (Grx/Gry) and GTA2 (G24).
 #[derive(BinRead)]
 #[br(little)]
 #[allow(dead_code)]
 enum Header {
+    /// GTA 1 (Liberty City, etc.)
     #[br(magic = 290u32)]
     Grx {
         side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
@@ -15,6 +17,7 @@ enum Header {
         object_info_size: u32, car_size: u32, sprite_info_size: u32,
         sprite_graphics_size: u32, sprite_numbers_size: u32,
     },
+    /// GTA 1 (London)
     #[br(magic = 325u32)]
     Gry {
         side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
@@ -22,6 +25,7 @@ enum Header {
         object_info_size: u32, car_size: u32, sprite_info_size: u32,
         sprite_graphics_size: u32, sprite_numbers_size: u32,
     },
+    /// GTA 2
     #[br(magic = 336u32)]
     G24 {
         side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
@@ -75,12 +79,16 @@ struct SpriteNumbersRaw {
     ex: u16, tumcar: u16, tumtruck: u16, ferry: u16,
 }
 
+/// Primary parser for GRY (GTA1) and G24 (GTA2) style files.
+/// These files contain all the graphical assets and metadata for a level.
 pub fn parse_gry(data: &[u8]) -> Result<Style> {
     let mut cursor = Cursor::new(data);
     let header: Header = cursor.read_le()?;
     let is_g24 = header.is_g24();
 
     // 1. Block Data
+    // Blocks are stored interleaved in groups of 4.
+    // Each group is a 256x64 pixel stripe (64px high * 4 blocks wide).
     let total_block_size = header.side_size() + header.lid_size() + header.aux_size();
     let block_count = total_block_size / 4096;
     let rem = block_count % 4;
@@ -385,6 +393,8 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         objects, cars, sprites, sprite_numbers, aux_to_trigger
     })
 }
+
+/// Reads a 32-bit fixed-point number (16.16) and converts it to f32.
 fn read_f32_fix(r: &mut (impl Read + Seek)) -> Result<f32> {
     let v: i32 = r.read_le()?;
     Ok(v as f32 / 65536.0)
@@ -425,5 +435,25 @@ mod tests {
         data.extend(palette);
         let style = parse_gry(&data).unwrap();
         assert_eq!(style.palette.colors[0][0], 255); // Scaled to 8-bit
+    }
+
+    #[test]
+    fn test_block_interleaving() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&325u32.to_le_bytes()); // Gry
+        data.extend_from_slice(&4096u32.to_le_bytes()); // 1 Side
+        for _ in 0..11 { data.extend_from_slice(&0u32.to_le_bytes()); }
+
+        // Block data must be at least 4 blocks (padding)
+        let mut block_bytes = vec![0u8; 4 * 4096];
+        // Set first pixel of block 0 (Row 0, Col 0)
+        // Offset = (row * 64 + y) * 256 + col * 64
+        // For row 0, y 0, col 0 -> 0
+        block_bytes[0] = 42;
+        data.extend(block_bytes);
+
+        let style = parse_gry(&data).unwrap();
+        assert_eq!(style.blocks.len(), 1);
+        assert_eq!(style.blocks[0].pixels[0], 42);
     }
 }

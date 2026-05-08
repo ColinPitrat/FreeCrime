@@ -2,27 +2,44 @@ use super::graphics::{IndexedImage, Palette};
 use serde::Serialize;
 use std::collections::HashMap;
 
+/// Represents the stylistic and graphical data for a GTA level.
+/// Includes block textures, animations, palettes, sprites, and car metadata.
 #[derive(Debug, Clone, Default)]
 pub struct Style {
+    /// List of all block textures (Sides, Lids, then Auxiliary).
     pub blocks: Vec<IndexedImage>,
+    /// Number of Side textures.
     pub side_count: usize,
+    /// Number of Lid textures.
     pub lid_count: usize,
+    /// Number of Auxiliary (animation frame) textures.
     pub aux_count: usize,
 
+    /// Animation definitions for blocks.
     pub animations: Vec<Animation>,
-    pub palette: Palette, // Primary palette for GRY/G24
-    pub remap_tables: Vec<[u8; 256]>, // For GRY
-    pub remap_indices: Vec<[u8; 4]>, // For GRY (lid remap tables)
+    /// Primary palette used for 8-bit (GRY) and as a fallback.
+    pub palette: Palette,
+    /// Remap tables for 8-bit (GRY) shading.
+    pub remap_tables: Vec<[u8; 256]>,
+    /// Mapping of Lid IDs to their remap table indices in GRY.
+    pub remap_indices: Vec<[u8; 4]>,
 
-    // G24 specific
+    /// List of all palettes (CLUTs) for 24-bit (G24/GTA2) styles.
     pub cluts: Vec<Palette>,
+    /// Mapping of Global Block Indices to their specific CLUT indices.
     pub palette_index: Vec<u16>,
+    /// Number of tile-specific CLUTs.
     pub tile_cl_count: usize,
+    /// Number of sprite-specific CLUTs.
     pub sprite_cl_count: usize,
 
+    /// Metadata for 3D map objects.
     pub objects: Vec<ObjectInfo>,
+    /// Metadata for vehicles.
     pub cars: Vec<CarInfo>,
+    /// List of all 2D sprites.
     pub sprites: Vec<Sprite>,
+    /// Counts of sprites by category.
     pub sprite_numbers: SpriteNumbers,
 
     /// Mapping from Aux block index to the (block_idx, which) that triggers it.
@@ -31,18 +48,24 @@ pub struct Style {
     pub aux_to_trigger: HashMap<usize, (usize, u8)>,
 }
 
+/// Supported GTA versions that dictate specific parsing and rendering rules.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
 pub enum GtaVersion {
+    /// Original GTA 1 (Liberty City, San Andreas, Vice City).
     Gta1,
+    /// GTA London 1969 and 1961 expansions.
     London,
+    /// Grand Theft Auto 2.
     Gta2,
 }
 
 impl Style {
+    /// Returns true if the given block index and type (Side/Lid) has an animation defined.
     pub fn is_block_animated(&self, map_idx: usize, which: u8) -> bool {
         self.animations.iter().any(|a| a.block as usize == map_idx && a.which == which)
     }
 
+    /// Calculates the correct texture atlas index for a block, accounting for current animation tick.
     pub fn get_animated_atlas_idx(&self, map_idx: usize, which: u8, remap: usize, ticks: u64, version: GtaVersion) -> usize {
         for anim in &self.animations {
             if anim.block as usize == map_idx && anim.which == which {
@@ -75,6 +98,7 @@ impl Style {
     }
 
     /// Gets the RGBA pixels for a block face, handling both GRY and G24 palette systems.
+    /// Transparency is determined by the `is_flat` parameter and the "Golden Rule" (index 0).
     pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, version: GtaVersion, is_flat: bool) -> Vec<u8> {
         let block_idx = match face_type {
             FaceType::Side => face_idx,
@@ -86,7 +110,6 @@ impl Style {
         let block = &self.blocks[block_idx];
 
         // Flatness Rule: Lids are only transparent if the block is marked as Flat.
-        // Without this rule, some roofs in London are incorrectly transparent.
         // Sides (walls) and Aux (animations) always support index 0 transparency.
         let transparent = match face_type {
             FaceType::Side | FaceType::Aux => true,
@@ -142,6 +165,7 @@ impl Style {
         }
     }
 
+    /// Returns a map of category names to their starting sprite index in the Style.
     pub fn get_sprite_offsets(&self) -> HashMap<&'static str, usize> {
         let mut offsets = HashMap::new();
         let mut current = 0;
@@ -172,6 +196,7 @@ impl Style {
     }
 }
 
+/// Returns the sprite category name for a given vehicle type ID.
 pub fn vehicle_type_const(vtype: u8) -> &'static str {
     match vtype {
         0 => "SPR_BUS",
@@ -185,17 +210,24 @@ pub fn vehicle_type_const(vtype: u8) -> &'static str {
     }
 }
 
+/// Identifies the type of a block face (Side, Lid, or Auxiliary).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FaceType { Side, Lid, Aux }
 
+/// Defines an animation loop for a block texture.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Animation {
+    /// Triggering block ID.
     pub block: u8,
-    pub which: u8, // 0 for side, 1 for lid
+    /// Type of triggering face (0: Side, 1: Lid).
+    pub which: u8,
+    /// Animation speed.
     pub speed: u8,
-    pub frames: Vec<u8>, // Indices into aux_blocks
+    /// List of auxiliary block indices used as animation frames.
+    pub frames: Vec<u8>,
 }
 
+/// Information about a 3D map object.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ObjectInfo {
     pub width: u16,
@@ -208,6 +240,7 @@ pub struct ObjectInfo {
     pub into: Vec<u16>,
 }
 
+/// Detailed metadata for a vehicle.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct CarInfo {
     pub width: u16,
@@ -252,6 +285,7 @@ pub struct CarInfo {
     pub doors: Vec<DoorInfo>,
 }
 
+/// Information about a vehicle door.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct DoorInfo {
     pub rpx: i16,
@@ -260,6 +294,7 @@ pub struct DoorInfo {
     pub delta: i16,
 }
 
+/// Represents a 2D sprite with optional deltas for animations or variations.
 #[derive(Debug, Clone, Default)]
 pub struct Sprite {
     pub width: u8,
@@ -273,6 +308,7 @@ pub struct Sprite {
 }
 
 impl Sprite {
+    /// Applies a delta modification to the base sprite pixels.
     pub fn apply_delta(&self, delta_idx: usize) -> Vec<u8> {
         if delta_idx >= self.deltas.len() { return self.pixels.clone(); }
         let mut pixels = self.pixels.clone();
@@ -315,6 +351,7 @@ impl Sprite {
     }
 }
 
+/// A pixel-level modification for a sprite.
 #[derive(Debug, Clone, Default)]
 pub struct Delta {
     pub size: u16,
@@ -322,6 +359,7 @@ pub struct Delta {
     pub data: Vec<u8>,
 }
 
+/// Sprite counts for various game categories.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct SpriteNumbers {
     pub arrow: u16,
@@ -387,4 +425,16 @@ mod tests {
         assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 10, GtaVersion::London), 100 + 10 * 4);
     }
 
+    #[test]
+    fn test_is_block_animated() {
+        let mut style = Style::default();
+        style.animations.push(Animation {
+            block: 10,
+            which: 0, // Side
+            ..Default::default()
+        });
+        assert!(style.is_block_animated(10, 0));
+        assert!(!style.is_block_animated(10, 1));
+        assert!(!style.is_block_animated(11, 0));
+    }
 }

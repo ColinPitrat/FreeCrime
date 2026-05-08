@@ -9,6 +9,7 @@ use std::fs;
 
 use crate::GtaVersion;
 
+/// Starts the Bevy-based 3D map viewer.
 pub fn execute(
     map_path: &str,
     style_path: &str,
@@ -49,6 +50,7 @@ pub fn execute(
     Ok(())
 }
 
+/// Global resource containing the loaded map and style data.
 #[derive(Resource)]
 struct MapData {
     map: Map,
@@ -56,15 +58,18 @@ struct MapData {
     gta_version: GtaVersion,
 }
 
+/// Resource for passing initial camera state from CLI to Bevy.
 #[derive(Resource)]
 struct InitialCamera {
     pos: Vec3,
     rot: Quat,
 }
 
+/// Tracks the current gameplay tick for synchronization of animations.
 #[derive(Resource)]
 struct AnimationTicks(u64);
 
+/// Component assigned to each 16x16 chunk of the map.
 #[derive(Component)]
 struct Chunk {
     cx: usize,
@@ -72,6 +77,7 @@ struct Chunk {
     has_animations: bool,
 }
 
+/// Bevy startup system: creates the texture atlas and spawns map chunks.
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -170,6 +176,7 @@ fn setup(
     println!("          L: Log current position and angle");
 }
 
+/// Helper to copy 64x64 RGBA pixels into the master texture atlas.
 fn copy_to_atlas(atlas: &mut [u8], atlas_size: usize, idx: usize, rgba: &[u8]) {
     let tiles_per_row = atlas_size / 64;
     let tx = (idx % tiles_per_row) * 64;
@@ -183,6 +190,7 @@ fn copy_to_atlas(atlas: &mut [u8], atlas_size: usize, idx: usize, rgba: &[u8]) {
     }
 }
 
+/// Generates a single Mesh for a 16x16 chunk of the map.
 fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: usize, ticks: u64) -> Option<(Mesh, bool)> {
     let mut positions = Vec::new();
     let mut normals = Vec::new();
@@ -263,6 +271,8 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
     Some((mesh, has_animations))
 }
 
+/// Adds a single quad face to the chunk mesh data.
+/// Handles UV coordinate calculation for sloped and rotated tiles.
 #[allow(clippy::too_many_arguments)]
 fn add_face(pos: &mut Vec<Vec3>, norm: &mut Vec<Vec3>, uvs: &mut Vec<Vec2>, indices: &mut Vec<u32>, vertices: [Vec3; 4], n: Vec3, tile_idx: usize, tiles_per_row: usize, rot: u8, flip_h: bool, v_weights: [f32; 4]) {
     let start_idx = pos.len() as u32;
@@ -290,6 +300,7 @@ fn add_face(pos: &mut Vec<Vec3>, norm: &mut Vec<Vec3>, uvs: &mut Vec<Vec2>, indi
     indices.extend_from_slice(&[start_idx, start_idx + 1, start_idx + 2, start_idx, start_idx + 2, start_idx + 3]);
 }
 
+/// Bevy system handling fly-camera movement and rotation.
 fn camera_movement_system(
     time: Res<Time>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -335,6 +346,7 @@ fn camera_movement_system(
     if keyboard_input.pressed(KeyCode::KeyE) { transform.rotate_local_z(-rot_speed * time.delta_secs()); }
 }
 
+/// Bevy system that updates map meshes every tick to handle animations.
 fn animation_system(
     time: Res<Time>,
     mut ticks: ResMut<AnimationTicks>,

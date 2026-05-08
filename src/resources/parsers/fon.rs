@@ -19,6 +19,8 @@ struct GlyphRaw {
     pixels: Vec<u8>,
 }
 
+/// Parses a FON font file.
+/// These files contain a variable number of glyphs with a fixed height and a shared 8-bit palette.
 pub fn parse_fon(data: &[u8]) -> Result<Font> {
     let mut cursor = Cursor::new(data);
     let header: FonHeader = cursor.read_le()?;

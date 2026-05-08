@@ -8,24 +8,30 @@ pub use types::font::Font;
 pub use types::graphics::{IndexedImage, Palette};
 pub use parsers::ini::Mission;
 
+/// Error types for the FreeCrime resource library.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// Errors occurring during file format parsing.
     #[error("Parse error: {0}")]
     Parse(String),
 
+    /// Low-level binary reading errors from binrw.
     #[error("Binary read error: {0}")]
     BinRead(#[from] binrw::Error),
 
+    /// Miscellaneous errors.
     #[error("Other error: {0}")]
     Other(String),
 }
 
+/// Library-specific Result type.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// A coherent bundle of resources representing a full game city/level.
+/// Combines map geometry, visual style, mission scripts, and localized text.
 #[derive(Debug, Clone)]
 pub struct CityBundle {
     pub map: Map,
@@ -35,6 +41,7 @@ pub struct CityBundle {
 }
 
 impl CityBundle {
+    /// Utility to load all primary components for a GTA 1 level from memory.
     pub fn load_gta1(
         map_data: &[u8],
         style_data: &[u8],

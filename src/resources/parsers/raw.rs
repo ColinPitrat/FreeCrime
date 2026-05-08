@@ -1,6 +1,8 @@
 use crate::resources::types::graphics::{IndexedImage, Palette};
 use crate::resources::{Result, Error};
 
+/// Parses an ACT palette file.
+/// These files contain 768 bytes representing 256 RGB triplets.
 pub fn parse_act(data: &[u8]) -> Result<Palette> {
     if data.len() < 768 {
         return Err(Error::Parse(format!("ACT file too small: {} bytes", data.len())));
@@ -20,6 +22,8 @@ pub fn parse_act(data: &[u8]) -> Result<Palette> {
     Ok(Palette { colors })
 }
 
+/// Parses a RAT indexed image file.
+/// These files contain raw palette indices for an image with the specified dimensions.
 pub fn parse_rat(data: &[u8], width: u32, height: u32) -> Result<IndexedImage> {
     let expected_size = (width * height) as usize;
     if data.len() != expected_size {
@@ -31,6 +35,8 @@ pub fn parse_rat(data: &[u8], width: u32, height: u32) -> Result<IndexedImage> {
     Ok(IndexedImage::new(width, height, data.to_vec()))
 }
 
+/// Manually writes 32-bit RGBA pixel data to a standard BMP file.
+/// Used for generating map overviews and extracting tiles without external dependencies.
 pub fn write_rgba_bmp(path: &str, width: u32, height: u32, rgba: &[u8]) -> std::io::Result<()> {
     use std::fs::File;
     use std::io::Write;
