@@ -8,6 +8,9 @@ esac
 # Houses roof in London (shouldn't be transparent)
 cargo run -- display gamedata/gta-uk/UK.CMP gamedata/gta-uk/Style001.${LC_EXT} --camera-position 212.59,6.07,263.88 --camera-rotation 2.04,-26.48,-0.00 --gta-version london
 
+# London Bridge (should be transparent)
+cargo run -- display gamedata/gta-uk/UK.CMP gamedata/gta-uk/Style001.${LC_EXT} --camera-position 248.89,14.81,153.32 --camera-rotation 35.88,-31.00,0.00 --gta-version london
+
 # Hospital sign in London
 cargo run -- display gamedata/gta-uk/UK.CMP gamedata/gta-uk/Style001.${LC_EXT} --camera-position 199.45,6.07,204.78 --camera-rotation 91.83,-24.43,0.00 --gta-version london
 
