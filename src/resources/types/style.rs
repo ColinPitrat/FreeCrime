@@ -75,7 +75,7 @@ impl Style {
     }
 
     /// Gets the RGBA pixels for a block face, handling both GRY and G24 palette systems.
-    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, version: GtaVersion) -> Vec<u8> {
+    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, version: GtaVersion, is_flat: bool) -> Vec<u8> {
         let block_idx = match face_type {
             FaceType::Side => face_idx,
             FaceType::Lid => self.side_count + face_idx,
@@ -85,12 +85,12 @@ impl Style {
         if block_idx >= self.blocks.len() { return vec![0; 64 * 64 * 4]; }
         let block = &self.blocks[block_idx];
 
-        // London map lids/aux are opaque (index 0 is a visible color like black).
-        // Standard GTA 1 and GTA 2 tiles support index 0 transparency.
-        // Sides (walls) always support index 0 transparency for fences/decorations.
+        // Flatness Rule: Lids are only transparent if the block is marked as Flat.
+        // Without this rule, some roofs in London are incorrectly transparent.
+        // Sides (walls) and Aux (animations) always support index 0 transparency.
         let transparent = match face_type {
-            FaceType::Side => true,
-            FaceType::Lid | FaceType::Aux => version != GtaVersion::London,
+            FaceType::Side | FaceType::Aux => true,
+            FaceType::Lid => is_flat,
         };
 
         if !self.cluts.is_empty() {

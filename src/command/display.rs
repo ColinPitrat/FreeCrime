@@ -91,19 +91,22 @@ fn setup(
 
     use freecrime::resources::types::style::FaceType;
 
+    let lid_flatness = map_data.map.get_lid_flatness();
+
     // Sides
     for face_idx in 0..map_data.style.side_count {
         if current_atlas_idx >= 1024 { break; }
-        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0, map_data.gta_version);
+        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0, map_data.gta_version, false);
         copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
         current_atlas_idx += 1;
     }
 
     // Lids (4 remaps each)
     for face_idx in 0..map_data.style.lid_count {
+        let is_flat = lid_flatness.get(face_idx).cloned().unwrap_or(false);
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, map_data.gta_version);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, map_data.gta_version, is_flat);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }
@@ -113,7 +116,7 @@ fn setup(
     for face_idx in 0..map_data.style.aux_count {
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap, map_data.gta_version);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap, map_data.gta_version, true);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }

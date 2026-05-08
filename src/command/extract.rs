@@ -24,17 +24,17 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
             fs::create_dir_all(&blocks_dir)?;
 
             for i in 0..style.side_count {
-                let rgba = style.get_face_rgba(i, FaceType::Side, 0, GtaVersion::Gta1);
+                let rgba = style.get_face_rgba(i, FaceType::Side, 0, GtaVersion::Gta1, false);
                 save_png(&blocks_dir.join(format!("side_{:03}.png", i)), 64, 64, &rgba)?;
             }
             for i in 0..style.lid_count {
                 for r in 0..4 {
-                    let rgba = style.get_face_rgba(i, FaceType::Lid, r, GtaVersion::Gta1);
+                    let rgba = style.get_face_rgba(i, FaceType::Lid, r, GtaVersion::Gta1, true);
                     save_png(&blocks_dir.join(format!("lid_{:03}_remap_{}.png", i, r)), 64, 64, &rgba)?;
                 }
             }
             for i in 0..style.aux_count {
-                let rgba = style.get_face_rgba(i, FaceType::Aux, 0, GtaVersion::Gta1);
+                let rgba = style.get_face_rgba(i, FaceType::Aux, 0, GtaVersion::Gta1, true);
                 save_png(&blocks_dir.join(format!("aux_{:03}.png", i)), 64, 64, &rgba)?;
             }
 

@@ -33,6 +33,16 @@ impl Map {
             self.blocks[z * self.width * self.height + y * self.width + x] = Some(block);
         }
     }
+
+    pub fn get_lid_flatness(&self) -> Vec<bool> {
+        let mut flatness = vec![false; 256];
+        for block in self.blocks.iter().flatten() {
+            if block.lid != 0 && block.is_flat() {
+                flatness[block.lid as usize] = true;
+            }
+        }
+        flatness
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
