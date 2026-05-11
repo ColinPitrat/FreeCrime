@@ -6,7 +6,7 @@ CITY="London"
 CITY="Liberty City"
 
 # Decide the style file and the foreground color based on the city.
-case $CITY
+case $CITY in
   "London")
     #style_file=path-to-gtadata/UK/Style001.g24
     fg=0
