@@ -2,7 +2,7 @@ use freecrime::resources::parsers;
 use std::fs;
 use std::path::Path;
 
-pub fn execute(cmp_path: &str) -> anyhow::Result<()> {
+pub fn execute(cmp_path: &str, out_path_override: Option<&str>) -> anyhow::Result<()> {
     let map_data = fs::read(cmp_path)?;
     let map = parsers::cmp::parse_cmp(&map_data)?;
 
@@ -36,7 +36,12 @@ pub fn execute(cmp_path: &str) -> anyhow::Result<()> {
         }
     }
 
-    let out_path = Path::new(cmp_path).with_extension("bmp");
+    let out_path = if let Some(p) = out_path_override {
+        Path::new(p).to_path_buf()
+    } else {
+        Path::new(cmp_path).with_extension("bmp")
+    };
+
     let img = image::RgbImage::from_raw(map.width as u32, map.height as u32, pixels).unwrap();
     img.save(&out_path)?;
 

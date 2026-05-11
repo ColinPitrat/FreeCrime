@@ -36,6 +36,9 @@ enum Commands {
     Overview {
         /// Path to the CMP map file.
         cmp: String,
+        /// Path to the output image file.
+        #[arg(long, short)]
+        output: Option<String>,
     },
     /// Interactive 3D map viewer using the Bevy engine.
     Display {
@@ -63,8 +66,8 @@ fn main() -> anyhow::Result<()> {
         Commands::Extract { file, out, cmp } => {
             command::extract::execute(&file, &out, cmp.as_deref()).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
-        Commands::Overview { cmp } => {
-            command::overview::execute(&cmp).map_err(|e| anyhow::anyhow!("{}", e))?;
+        Commands::Overview { cmp, output } => {
+            command::overview::execute(&cmp, output.as_deref()).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
         Commands::Display { cmp, gry, camera_position, camera_rotation } => {
             let pos = parse_vec3(camera_position)?;
