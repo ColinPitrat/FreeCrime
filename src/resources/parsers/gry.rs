@@ -4,20 +4,12 @@ use crate::resources::{Result, Error};
 use std::io::{Cursor, Seek, SeekFrom, Read};
 use binrw::{BinRead, BinReaderExt};
 
-/// Internal header structure for style files, supporting both GTA1 (Grx/Gry) and GTA2 (G24).
+/// Internal header structure for style files, supporting both 8 bits (GRY) and 24 bits (G24).
 #[derive(BinRead)]
 #[br(little)]
 #[allow(dead_code)]
 enum Header {
-    /// GTA 1 (Liberty City, etc.)
-    #[br(magic = 290u32)]
-    Grx {
-        side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
-        palette_size: u32, remap_size: u32, remap_index_size: u32,
-        object_info_size: u32, car_size: u32, sprite_info_size: u32,
-        sprite_graphics_size: u32, sprite_numbers_size: u32,
-    },
-    /// GTA 1 (London)
+    /// 8 bits graphics
     #[br(magic = 325u32)]
     Gry {
         side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
@@ -25,7 +17,7 @@ enum Header {
         object_info_size: u32, car_size: u32, sprite_info_size: u32,
         sprite_graphics_size: u32, sprite_numbers_size: u32,
     },
-    /// GTA 2
+    /// 24 bits graphics
     #[br(magic = 336u32)]
     G24 {
         side_size: u32, lid_size: u32, aux_size: u32, anim_size: u32,
@@ -37,18 +29,18 @@ enum Header {
 }
 
 impl Header {
-    fn side_size(&self) -> u32 { match self { Header::Grx { side_size, .. } | Header::Gry { side_size, .. } | Header::G24 { side_size, .. } => *side_size } }
-    fn lid_size(&self) -> u32 { match self { Header::Grx { lid_size, .. } | Header::Gry { lid_size, .. } | Header::G24 { lid_size, .. } => *lid_size } }
-    fn aux_size(&self) -> u32 { match self { Header::Grx { aux_size, .. } | Header::Gry { aux_size, .. } | Header::G24 { aux_size, .. } => *aux_size } }
-    fn anim_size(&self) -> u32 { match self { Header::Grx { anim_size, .. } | Header::Gry { anim_size, .. } | Header::G24 { anim_size, .. } => *anim_size } }
-    fn palette_size(&self) -> u32 { match self { Header::Grx { palette_size, .. } | Header::Gry { palette_size, .. } => *palette_size, Header::G24 { clut_size, .. } => *clut_size } }
-    fn remap_size(&self) -> u32 { match self { Header::Grx { remap_size, .. } | Header::Gry { remap_size, .. } => *remap_size, Header::G24 { clut_size, .. } => *clut_size } }
-    fn remap_index_size(&self) -> u32 { match self { Header::Grx { remap_index_size, .. } | Header::Gry { remap_index_size, .. } => *remap_index_size, Header::G24 { palette_index_size, .. } => *palette_index_size } }
-    fn object_info_size(&self) -> u32 { match self { Header::Grx { object_info_size, .. } | Header::Gry { object_info_size, .. } | Header::G24 { object_info_size, .. } => *object_info_size } }
-    fn car_size(&self) -> u32 { match self { Header::Grx { car_size, .. } | Header::Gry { car_size, .. } | Header::G24 { car_size, .. } => *car_size } }
-    fn sprite_info_size(&self) -> u32 { match self { Header::Grx { sprite_info_size, .. } | Header::Gry { sprite_info_size, .. } | Header::G24 { sprite_info_size, .. } => *sprite_info_size } }
-    fn sprite_graphics_size(&self) -> u32 { match self { Header::Grx { sprite_graphics_size, .. } | Header::Gry { sprite_graphics_size, .. } | Header::G24 { sprite_graphics_size, .. } => *sprite_graphics_size } }
-    fn sprite_numbers_size(&self) -> u32 { match self { Header::Grx { sprite_numbers_size, .. } | Header::Gry { sprite_numbers_size, .. } | Header::G24 { sprite_numbers_size, .. } => *sprite_numbers_size } }
+    fn side_size(&self) -> u32 { match self { Header::Gry { side_size, .. } | Header::G24 { side_size, .. } => *side_size } }
+    fn lid_size(&self) -> u32 { match self { Header::Gry { lid_size, .. } | Header::G24 { lid_size, .. } => *lid_size } }
+    fn aux_size(&self) -> u32 { match self { Header::Gry { aux_size, .. } | Header::G24 { aux_size, .. } => *aux_size } }
+    fn anim_size(&self) -> u32 { match self { Header::Gry { anim_size, .. } | Header::G24 { anim_size, .. } => *anim_size } }
+    fn palette_size(&self) -> u32 { match self { Header::Gry { palette_size, .. } => *palette_size, Header::G24 { clut_size, .. } => *clut_size } }
+    fn remap_size(&self) -> u32 { match self { Header::Gry { remap_size, .. } => *remap_size, Header::G24 { clut_size, .. } => *clut_size } }
+    fn remap_index_size(&self) -> u32 { match self { Header::Gry { remap_index_size, .. } => *remap_index_size, Header::G24 { palette_index_size, .. } => *palette_index_size } }
+    fn object_info_size(&self) -> u32 { match self { Header::Gry { object_info_size, .. } | Header::G24 { object_info_size, .. } => *object_info_size } }
+    fn car_size(&self) -> u32 { match self { Header::Gry { car_size, .. } | Header::G24 { car_size, .. } => *car_size } }
+    fn sprite_info_size(&self) -> u32 { match self { Header::Gry { sprite_info_size, .. } | Header::G24 { sprite_info_size, .. } => *sprite_info_size } }
+    fn sprite_graphics_size(&self) -> u32 { match self { Header::Gry { sprite_graphics_size, .. } | Header::G24 { sprite_graphics_size, .. } => *sprite_graphics_size } }
+    fn sprite_numbers_size(&self) -> u32 { match self { Header::Gry { sprite_numbers_size, .. } | Header::G24 { sprite_numbers_size, .. } => *sprite_numbers_size } }
     fn tileclut_size(&self) -> u32 { match self { Header::G24 { tileclut_size, .. } => *tileclut_size, _ => 0 } }
     fn spriteclut_size(&self) -> u32 { match self { Header::G24 { spriteclut_size, .. } => *spriteclut_size, _ => 0 } }
     fn is_g24(&self) -> bool { matches!(self, Header::G24 { .. }) }
