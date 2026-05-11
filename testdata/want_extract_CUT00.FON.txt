@@ -1,8 +1,8 @@
-e302a70100974d7c0dfb17b8565e4f86  testdata/got_extract_CUT00.FON/glyph_007.png
-702dc13f5f55c53d3ddd43d4bef038c5  testdata/got_extract_CUT00.FON/glyph_006.png
 0d7bdb15c85502bfcc3abd0812fcd8ca  testdata/got_extract_CUT00.FON/glyph_000.png
-bca6621803261d2401c4026347a86de5  testdata/got_extract_CUT00.FON/glyph_002.png
-ba536f8a80644ee200a6e1578c7e681f  testdata/got_extract_CUT00.FON/glyph_004.png
-953e354ddfc64900cd22baa8bfb821b8  testdata/got_extract_CUT00.FON/glyph_005.png
 18c0ef59907856a37d5bb58fc318fbe5  testdata/got_extract_CUT00.FON/glyph_003.png
 38b627549a44a98d5c93f012b06a2cb2  testdata/got_extract_CUT00.FON/glyph_001.png
+702dc13f5f55c53d3ddd43d4bef038c5  testdata/got_extract_CUT00.FON/glyph_006.png
+953e354ddfc64900cd22baa8bfb821b8  testdata/got_extract_CUT00.FON/glyph_005.png
+ba536f8a80644ee200a6e1578c7e681f  testdata/got_extract_CUT00.FON/glyph_004.png
+bca6621803261d2401c4026347a86de5  testdata/got_extract_CUT00.FON/glyph_002.png
+e302a70100974d7c0dfb17b8565e4f86  testdata/got_extract_CUT00.FON/glyph_007.png
