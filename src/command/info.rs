@@ -2,13 +2,21 @@ use freecrime::resources::parsers;
 use std::fs;
 use std::path::Path;
 
-pub fn execute(path: &str) -> anyhow::Result<()> {
-    let data = fs::read(path)?;
-    let ext = Path::new(path)
+pub fn execute(file_path: &str, cmp_path: Option<&str>) -> anyhow::Result<()> {
+    let data = fs::read(file_path)?;
+    let ext = Path::new(file_path)
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_uppercase();
+
+    let is_style = matches!(ext.as_str(), "GRY" | "G24");
+    if is_style && cmp_path.is_none() {
+        anyhow::bail!("Style files (GRY/G24) require a CMP map file for context. Use --cmp <PATH>");
+    }
+    if !is_style && cmp_path.is_some() {
+        println!("Warning: CMP file provided but not needed for {} file type.", ext);
+    }
 
     match ext.as_str() {
         "FXT" => {

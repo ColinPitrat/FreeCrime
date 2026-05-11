@@ -5,17 +5,31 @@ use std::fs;
 use std::path::Path;
 use serde::Serialize;
 
-pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
-    let data = fs::read(path)?;
-    let ext = Path::new(path)
+pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::Result<()> {
+    let data = fs::read(style_path)?;
+    let ext = Path::new(style_path)
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_uppercase();
 
+    let is_style = matches!(ext.as_str(), "GRY" | "G24");
+    if is_style && cmp_path.is_none() {
+        anyhow::bail!("Style files (GRY/G24) require a CMP map file for context. Use --cmp <PATH>");
+    }
+    if !is_style && cmp_path.is_some() {
+        println!("Warning: CMP file provided but not needed for {} file type.", ext);
+    }
+
     match ext.as_str() {
         "GRY" | "G24" => {
             let style = parsers::gry::parse_gry(&data)?;
+
+            // Read CMP to get bit-perfect lid transparency (safe unwrap because of check above)
+            let cmp_data = fs::read(cmp_path.unwrap())?;
+            let map = parsers::cmp::parse_cmp(&cmp_data)?;
+            let lid_flatness = map.get_lid_flatness();
+
             fs::create_dir_all(out)?;
 
             // 1. Blocks
@@ -28,8 +42,9 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
                 save_png(&blocks_dir.join(format!("side_{:03}.png", i)), 64, 64, &rgba)?;
             }
             for i in 0..style.lid_count {
+                let is_flat = lid_flatness.get(i).cloned().unwrap_or(false);
                 for r in 0..4 {
-                    let rgba = style.get_face_rgba(i, FaceType::Lid, r, true);
+                    let rgba = style.get_face_rgba(i, FaceType::Lid, r, is_flat);
                     save_png(&blocks_dir.join(format!("lid_{:03}_remap_{}.png", i, r)), 64, 64, &rgba)?;
                 }
             }
@@ -115,7 +130,7 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
             let json = serde_json::to_string_pretty(&style_metadata(&style))?;
             fs::write(Path::new(out).join("style.json"), json)?;
 
-            println!("Extracted all data from {} to {}", path, out);
+            println!("Extracted all data from {} to {}", style_path, out);
         }
         "FON" => {
             let font = parsers::fon::parse_fon(&data)?;
@@ -127,14 +142,14 @@ pub fn execute(path: &str, out: &str) -> anyhow::Result<()> {
             println!("Extracted {} glyphs to {}", font.glyphs.len(), out);
         }
         "SDT" => {
-            let raw_path = Path::new(path).with_extension("RAW");
+            let raw_path = Path::new(style_path).with_extension("RAW");
             if !raw_path.exists() {
                 anyhow::bail!("Associated RAW file not found: {:?}", raw_path);
             }
             let raw_data = fs::read(raw_path)?;
             let indices = parsers::sdt::parse_sdt(&data)?;
             fs::create_dir_all(out)?;
-            let filename = Path::new(path).file_stem().and_then(|s| s.to_str()).unwrap_or("sound");
+            let filename = Path::new(style_path).file_stem().and_then(|s| s.to_str()).unwrap_or("sound");
             let is_level000 = filename.to_uppercase() == "LEVEL000";
 
             for (i, record) in indices.iter().enumerate() {

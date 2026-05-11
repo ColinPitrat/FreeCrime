@@ -91,6 +91,8 @@ fn setup(
     // Direct mapping: Map Index 0 maps to Atlas Index 0
     let mut current_atlas_idx = 0;
 
+    let lid_flatness = map_data.map.get_lid_flatness();
+
     // Sides
     for face_idx in 0..map_data.style.side_count {
         if current_atlas_idx >= 1024 { break; }
@@ -101,10 +103,10 @@ fn setup(
 
     // Lids (4 remaps each)
     for face_idx in 0..map_data.style.lid_count {
-        // Flatness Rule fallback (until fully internalized)
+        let is_flat = lid_flatness.get(face_idx).cloned().unwrap_or(false);
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, true);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, is_flat);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }

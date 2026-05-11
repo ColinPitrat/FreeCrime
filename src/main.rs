@@ -18,6 +18,9 @@ enum Commands {
     Info {
         /// Path to the game file (CMP, GRY, G24, FXT, FON, SDT, INI).
         file: String,
+        /// Path to the CMP map file for style context.
+        #[arg(long)]
+        cmp: Option<String>,
     },
     /// Extract content from a game file into a directory.
     Extract {
@@ -25,6 +28,9 @@ enum Commands {
         file: String,
         /// Output directory or file.
         out: String,
+        /// Path to the CMP map file for style transparency context.
+        #[arg(long)]
+        cmp: Option<String>,
     },
     /// Generate a top-down overview BMP of the map.
     Overview {
@@ -51,11 +57,11 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Info { file } => {
-            command::info::execute(&file).map_err(|e| anyhow::anyhow!("{}", e))?;
+        Commands::Info { file, cmp } => {
+            command::info::execute(&file, cmp.as_deref()).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
-        Commands::Extract { file, out } => {
-            command::extract::execute(&file, &out).map_err(|e| anyhow::anyhow!("{}", e))?;
+        Commands::Extract { file, out, cmp } => {
+            command::extract::execute(&file, &out, cmp.as_deref()).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
         Commands::Overview { cmp } => {
             command::overview::execute(&cmp).map_err(|e| anyhow::anyhow!("{}", e))?;
