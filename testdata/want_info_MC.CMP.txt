@@ -1,0 +1,6 @@
+CMP Map File:
+  Dimensions: 256x256x6
+  Style Index: 1
+  Objects: 3126
+  Routes: 0
+  Max Tile Indices: side=194, lid=151
