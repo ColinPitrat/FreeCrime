@@ -1,13 +1,11 @@
 use freecrime::resources::parsers;
 use freecrime::resources::types::map::Map;
-use freecrime::resources::types::style::Style;
+use freecrime::resources::types::style::{FaceType, Style};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use std::fs;
-
-use crate::GtaVersion;
 
 /// Starts the Bevy-based 3D map viewer.
 pub fn execute(
@@ -15,7 +13,6 @@ pub fn execute(
     style_path: &str,
     initial_pos_arr: Option<[f32; 3]>,
     initial_rot_arr: Option<[f32; 3]>,
-    gta_version: GtaVersion,
 ) -> anyhow::Result<()> {
     let map_data = fs::read(map_path)?;
     let style_data = fs::read(style_path)?;
@@ -40,7 +37,7 @@ pub fn execute(
             ..default()
         }))
         .insert_resource(ClearColor(Color::srgb(0.1, 0.1, 0.2)))
-        .insert_resource(MapData { map, style, gta_version })
+        .insert_resource(MapData { map, style })
         .insert_resource(AnimationTicks(0))
         .insert_resource(InitialCamera { pos, rot })
         .add_systems(Startup, setup)
@@ -55,7 +52,6 @@ pub fn execute(
 struct MapData {
     map: Map,
     style: Style,
-    gta_version: GtaVersion,
 }
 
 /// Resource for passing initial camera state from CLI to Bevy.
@@ -95,24 +91,20 @@ fn setup(
     // Direct mapping: Map Index 0 maps to Atlas Index 0
     let mut current_atlas_idx = 0;
 
-    use freecrime::resources::types::style::FaceType;
-
-    let lid_flatness = map_data.map.get_lid_flatness();
-
     // Sides
     for face_idx in 0..map_data.style.side_count {
         if current_atlas_idx >= 1024 { break; }
-        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0, map_data.gta_version, false);
+        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0, false);
         copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
         current_atlas_idx += 1;
     }
 
     // Lids (4 remaps each)
     for face_idx in 0..map_data.style.lid_count {
-        let is_flat = lid_flatness.get(face_idx).cloned().unwrap_or(false);
+        // Flatness Rule fallback (until fully internalized)
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, map_data.gta_version, is_flat);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, true);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }
@@ -122,7 +114,7 @@ fn setup(
     for face_idx in 0..map_data.style.aux_count {
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap, map_data.gta_version, true);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap, true);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }
@@ -214,7 +206,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 if block.lid != 0 {
                     if map_data.style.is_block_animated(block.lid as usize, 1) { has_animations = true; }
                     let remap = block.lid_remap() as usize;
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.lid as usize, 1, remap, ticks, map_data.gta_version);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.lid as usize, 1, remap, ticks);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx, fy - d1, fz), Vec3::new(fx+1.0, fy - d2, fz), Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx, fy - d4, fz+1.0)],
                         Vec3::Y, atlas_idx, tiles_per_row, block.lid_rotation(), false, [0.0, 0.0, 1.0, 1.0]);
@@ -228,7 +220,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 // Left Wall (West, NEG_X)
                 if block.left != 0 {
                     if map_data.style.is_block_animated(block.left as usize, 0) { has_animations = true; }
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.left as usize, 0, 0, ticks, map_data.gta_version);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.left as usize, 0, 0, ticks);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx, fy - d4, fz+1.0), Vec3::new(fx, fy - d1, fz), Vec3::new(fx, fy-1.0, fz), Vec3::new(fx, fy-1.0, fz+1.0)],
                         Vec3::NEG_X, atlas_idx, tiles_per_row, 0, flip_lr, [d4, d1, 1.0, 1.0]);
@@ -236,7 +228,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 // Right Wall (East, POS_X)
                 if block.right != 0 && !is_flat {
                     if map_data.style.is_block_animated(block.right as usize, 0) { has_animations = true; }
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.right as usize, 0, 0, ticks, map_data.gta_version);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.right as usize, 0, 0, ticks);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx+1.0, fy - d2, fz), Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz)],
                         Vec3::X, atlas_idx, tiles_per_row, 0, flip_lr, [d2, d3, 1.0, 1.0]);
@@ -244,7 +236,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 // Top Wall (North, NEG_Z)
                 if block.top != 0 {
                     if map_data.style.is_block_animated(block.top as usize, 0) { has_animations = true; }
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.top as usize, 0, 0, ticks, map_data.gta_version);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.top as usize, 0, 0, ticks);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx, fy - d1, fz), Vec3::new(fx+1.0, fy - d2, fz), Vec3::new(fx+1.0, fy-1.0, fz), Vec3::new(fx, fy-1.0, fz)],
                         Vec3::NEG_Z, atlas_idx, tiles_per_row, 0, flip_tb, [d1, d2, 1.0, 1.0]);
@@ -252,7 +244,7 @@ fn generate_chunk_mesh(map_data: &MapData, cx: usize, cy: usize, tiles_per_row: 
                 // Bottom Wall (South, POS_Z)
                 if block.bottom != 0 && !is_flat {
                     if map_data.style.is_block_animated(block.bottom as usize, 0) { has_animations = true; }
-                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.bottom as usize, 0, 0, ticks, map_data.gta_version);
+                    let atlas_idx = map_data.style.get_animated_atlas_idx(block.bottom as usize, 0, 0, ticks);
                     add_face(&mut positions, &mut normals, &mut uvs, &mut indices,
                         [Vec3::new(fx+1.0, fy - d3, fz+1.0), Vec3::new(fx, fy - d4, fz+1.0), Vec3::new(fx, fy-1.0, fz+1.0), Vec3::new(fx+1.0, fy-1.0, fz+1.0)],
                         Vec3::Z, atlas_idx, tiles_per_row, 0, flip_tb, [d3, d4, 1.0, 1.0]);
@@ -335,7 +327,7 @@ fn camera_movement_system(
     let rot_speed = 1.5;
     // Arrows Left/Right -> Yaw (Global Y)
     if keyboard_input.pressed(KeyCode::ArrowLeft) { transform.rotate_y(rot_speed * time.delta_secs()); }
-    if keyboard_input.pressed(KeyCode::ArrowRight) { transform.rotate_y(-rot_speed * time.delta_secs()); }
+    if keyboard_input.pressed(KeyCode::ArrowRight) { transform.rotate_y(-2.0 * time.delta_secs()); }
 
     // Arrows Up/Down -> Pitch (Local X)
     if keyboard_input.pressed(KeyCode::ArrowUp) { transform.rotate_local_x(rot_speed * time.delta_secs()); }

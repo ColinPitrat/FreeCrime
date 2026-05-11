@@ -48,17 +48,6 @@ pub struct Style {
     pub aux_to_trigger: HashMap<usize, (usize, u8)>,
 }
 
-/// Supported GTA versions that dictate specific parsing and rendering rules.
-#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
-pub enum GtaVersion {
-    /// Original GTA 1 (Liberty City, San Andreas, Vice City).
-    Gta1,
-    /// GTA London 1969 and 1961 expansions.
-    London,
-    /// Grand Theft Auto 2.
-    Gta2,
-}
-
 impl Style {
     /// Returns true if the given block index and type (Side/Lid) has an animation defined.
     pub fn is_block_animated(&self, map_idx: usize, which: u8) -> bool {
@@ -66,16 +55,11 @@ impl Style {
     }
 
     /// Calculates the correct texture atlas index for a block, accounting for current animation tick.
-    pub fn get_animated_atlas_idx(&self, map_idx: usize, which: u8, remap: usize, ticks: u64, version: GtaVersion) -> usize {
+    pub fn get_animated_atlas_idx(&self, map_idx: usize, which: u8, remap: usize, ticks: u64) -> usize {
         for anim in &self.animations {
             if anim.block as usize == map_idx && anim.which == which {
-                // London Water Lid (fc=11) is an 11-frame loop including the base.
-                // NYC Side 100 (fc=1) is a 2-frame loop (Base + 1 Aux).
-                let total_frames = if version == GtaVersion::London && which == 1 {
-                    anim.frames.len()
-                } else {
-                    anim.frames.len() + 1
-                };
+                // Standard GTA 1 loop length is Frame Count + 1 (Base Block + Aux frames).
+                let total_frames = anim.frames.len() + 1;
 
                 if total_frames == 0 { break; }
                 let frame_idx = (ticks / std::cmp::max(1, anim.speed as u64)) % total_frames as u64;
@@ -99,7 +83,7 @@ impl Style {
 
     /// Gets the RGBA pixels for a block face, handling both GRY and G24 palette systems.
     /// Transparency is determined by the `is_flat` parameter and the "Golden Rule" (index 0).
-    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, version: GtaVersion, is_flat: bool) -> Vec<u8> {
+    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, is_flat: bool) -> Vec<u8> {
         let block_idx = match face_type {
             FaceType::Side => face_idx,
             FaceType::Lid => self.side_count + face_idx,
@@ -121,20 +105,7 @@ impl Style {
             let pal_idx_base = match face_type {
                 FaceType::Side => 4 * face_idx,
                 FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
-                FaceType::Aux => {
-                    // London fix: Aux blocks have un-shaded entries in mapping table.
-                    // Inherit triggering Lid's palette index to ensure shaded animations.
-                    if version == GtaVersion::London {
-                        let trigger_lid = self.aux_to_trigger.get(&face_idx).cloned();
-                        if let Some((lid_idx, _)) = trigger_lid {
-                            4 * (lid_idx + self.side_count) + remap
-                        } else {
-                            4 * (face_idx + self.side_count + self.lid_count) + remap
-                        }
-                    } else {
-                        4 * (face_idx + self.side_count + self.lid_count) + remap
-                    }
-                }
+                FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count) + remap,
             };
 
             let clut_idx = if pal_idx_base < self.palette_index.len() {
@@ -148,16 +119,7 @@ impl Style {
             let table_idx = match face_type {
                 FaceType::Side => 0,
                 FaceType::Lid => self.remap_indices.get(face_idx).map(|r| r[remap] as usize).unwrap_or(0),
-                FaceType::Aux => {
-                    // London fix: Aux blocks have un-shaded entries in mapping table.
-                    // Inherit triggering Lid's palette index to ensure shaded animations.
-                    let trigger = self.aux_to_trigger.get(&face_idx).cloned();
-                    if let Some((idx, which)) = trigger {
-                         if which == 1 { // Lid
-                             self.remap_indices.get(idx).map(|r| r[remap] as usize).unwrap_or(0)
-                         } else { 0 }
-                    } else { 0 }
-                }
+                FaceType::Aux => 0,
             };
 
             let table = self.remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
@@ -396,10 +358,10 @@ mod tests {
         style.lid_count = 5;
 
         // Map index 1 -> Atlas index 1
-        assert_eq!(style.get_animated_atlas_idx(1, 0, 0, 0, GtaVersion::Gta1), 1);
+        assert_eq!(style.get_animated_atlas_idx(1, 0, 0, 0), 1);
 
         // Lid index 1 -> side_count + 1*4 + remap = 10 + 4 + 0 = 14
-        assert_eq!(style.get_animated_atlas_idx(1, 1, 0, 0, GtaVersion::Gta1), 14);
+        assert_eq!(style.get_animated_atlas_idx(1, 1, 0, 0), 14);
     }
 
     #[test]
@@ -415,14 +377,10 @@ mod tests {
         });
 
         // Gta1 Lid: total_frames = fc + 1 = 3 ([Base, Aux 0, Aux 1])
-        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 0, GtaVersion::Gta1), 100 + 10 * 4);
-        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 5, GtaVersion::Gta1), 100 + 50 * 4 + 0 * 4);
-        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 10, GtaVersion::Gta1), 100 + 50 * 4 + 1 * 4);
-
-        // London Lid: total_frames = fc = 2 ([Base, Aux 0])
-        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 0, GtaVersion::London), 100 + 10 * 4);
-        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 5, GtaVersion::London), 100 + 50 * 4 + 0 * 4);
-        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 10, GtaVersion::London), 100 + 10 * 4);
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 0), 100 + 10 * 4);
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 5), 100 + 50 * 4 + 0 * 4);
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 10), 100 + 50 * 4 + 1 * 4);
+        assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 15), 100 + 10 * 4);
     }
 
     #[test]

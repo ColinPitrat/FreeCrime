@@ -11,8 +11,6 @@ struct Cli {
     command: Commands,
 }
 
-use freecrime::resources::types::style::GtaVersion;
-
 /// Available commands for manipulating and viewing GTA resources.
 #[derive(Subcommand)]
 enum Commands {
@@ -45,9 +43,6 @@ enum Commands {
         /// Initial camera rotation in degrees as a comma-separated triplet (YAW,PITCH,ROLL).
         #[arg(long)]
         camera_rotation: Option<String>,
-        /// Target GTA version for specific style compatibility and rendering rules.
-        #[arg(long, value_enum, default_value_t = GtaVersion::Gta1)]
-        gta_version: GtaVersion,
     },
 }
 
@@ -65,10 +60,10 @@ fn main() -> anyhow::Result<()> {
         Commands::Overview { cmp } => {
             command::overview::execute(&cmp).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
-        Commands::Display { cmp, gry, camera_position, camera_rotation, gta_version } => {
+        Commands::Display { cmp, gry, camera_position, camera_rotation } => {
             let pos = parse_vec3(camera_position)?;
             let rot = parse_vec3(camera_rotation)?;
-            command::display::execute(&cmp, &gry, pos, rot, gta_version).map_err(|e| anyhow::anyhow!("{}", e))?;
+            command::display::execute(&cmp, &gry, pos, rot).map_err(|e| anyhow::anyhow!("{}", e))?;
         }
     }
 
