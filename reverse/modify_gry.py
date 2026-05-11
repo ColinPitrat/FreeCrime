@@ -469,7 +469,7 @@ class StyleFile:
         data = bytearray()
         for obj in self.object_info:
             num_into = len(obj['into'])
-            data.extend(struct.pack('<i i i H H H b B',
+            data.extend(struct.pack('<I I I H H H B B',
                 obj['width'], obj['height'], obj['depth'], obj['spr_num'],
                 obj['weight'], obj['aux'], obj['status'], num_into))
             data.extend(struct.pack(f'<{num_into}H', *obj['into']))
@@ -564,6 +564,9 @@ class StyleFile:
         return cars
 
     def pack_car_info(self):
+        def to_fixed(f):
+            return int(f * 65536)
+
         data = bytearray()
         for car in self.car_info:
             data.extend(struct.pack('<3h', car['width'], car['height'], car['depth']))
@@ -580,11 +583,11 @@ class StyleFile:
             data.extend(struct.pack('<4B', car['vtype'], car['model'], car['turning'], car['damageable']))
             data.extend(struct.pack('<4H', *car['value']))
             data.extend(struct.pack('<2b', car['cx'], car['cy']))
-            data.extend(struct.pack('<3i', car['moment'], car['rbp_mass'], car['g1_thrust']))
-            data.extend(struct.pack('<2i', car['tyre_adhesion_x'], car['tyre_adhesion_y']))
-            data.extend(struct.pack('<3i', car['handbrake_friction'], car['footbrake_friction'], car['front_brake_bias']))
+            data.extend(struct.pack('<3i', car['moment'], to_fixed(car['rbp_mass']), to_fixed(car['g1_thrust'])))
+            data.extend(struct.pack('<2i', to_fixed(car['tyre_adhesion_x']), to_fixed(car['tyre_adhesion_y'])))
+            data.extend(struct.pack('<3i', to_fixed(car['handbrake_friction']), to_fixed(car['footbrake_friction']), to_fixed(car['front_brake_bias'])))
             data.extend(struct.pack('<3h', car['turn_ratio'], car['drive_wheel_offset'], car['steering_wheel_offset']))
-            data.extend(struct.pack('<2i', car['back_end_slide_value'], car['handbrake_slide_value']))
+            data.extend(struct.pack('<2i', to_fixed(car['back_end_slide_value']), to_fixed(car['handbrake_slide_value'])))
             data.extend(struct.pack('<6B', car['convertible'], car['engine'], car['radio'],
                 car['horn'], car['sound_function'], car['fast_change_flag']))
 
@@ -713,7 +716,7 @@ class StyleFile:
 
         #if hasattr(self, 'sprite_graphics_padding'):
         #    gfx_data.extend(bytes(self.sprite_graphics_padding))
-        gfx_data.extend(self.sprite_graphics_raw)
+        gfx_data.extend(self.sprites_graphics_raw)
 
         return info_data, gfx_data
 
@@ -1096,14 +1099,85 @@ def main():
     parser.add_argument('--print', '-p', action='append', help='Print field value, e.g. header.version')
     parser.add_argument('--info', '-i', action='store_true', help='Print high level info about the result of the parsing')
     parser.add_argument('--export', '-e', help='Export pictures to directory')
+    parser.add_argument('--update_block', action='append', help='Update a block with a character: type,index,char,fg,bg')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
 
     args = parser.parse_args()
 
     style_file = StyleFile(args.input_file, args.verbose)
+    modified = False
 
     if args.info:
         style_file.print_info()
+
+    if args.update_block:
+        import os
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        import pygame
+        pygame.font.init()
+
+        for ub in args.update_block:
+            parts = ub.split(',')
+            if len(parts) != 5:
+                print(f"Invalid update_block format: {ub}. Expected type,index,char,fg,bg")
+                continue
+
+            b_type, index, char, fg, bg = parts
+            try:
+                index = int(index)
+                fg = int(fg)
+                bg = int(bg)
+            except ValueError:
+                print(f"Invalid numeric value in update_block: {ub}")
+                continue
+
+            # Generate texture
+            surf = pygame.Surface((64, 64))
+            surf.fill((0, 0, 0)) # Background for drawing
+
+            # Use a large font that fills most of the 64x64 area
+            font = pygame.font.SysFont('dejavusans,arial,helvetica,sans', 64, bold=True)
+            text_surf = font.render(char, True, (255, 255, 255))
+
+            tw, th = text_surf.get_size()
+            # Scale if too large to fit in 64x64 with some margin
+            if tw > 60 or th > 60:
+                scale = min(60/tw, 60/th)
+                text_surf = pygame.transform.scale(text_surf, (int(tw*scale), int(th*scale)))
+                tw, th = text_surf.get_size()
+
+            surf.blit(text_surf, ((64 - tw) // 2, (64 - th) // 2))
+
+            new_pixels = []
+            for y in range(64):
+                for x in range(64):
+                    color = surf.get_at((x, y))
+                    # Basic thresholding for the 8-bit index
+                    if color.r > 128:
+                        new_pixels.append(fg)
+                    else:
+                        new_pixels.append(bg)
+
+            if b_type == 'lid':
+                if index < len(style_file.lid_block):
+                    style_file.lid_block[index] = new_pixels
+                    modified = True
+                else:
+                    print(f"Lid index {index} out of range")
+            elif b_type == 'side':
+                if index < len(style_file.side_block):
+                    style_file.side_block[index] = new_pixels
+                    modified = True
+                else:
+                    print(f"Side index {index} out of range")
+            elif b_type == 'aux':
+                if index < len(style_file.aux_block):
+                    style_file.aux_block[index] = new_pixels
+                    modified = True
+                else:
+                    print(f"Aux index {index} out of range")
+            else:
+                print(f"Unknown block type: {b_type}")
 
     if args.export:
         out_dir = args.export
@@ -1271,13 +1345,15 @@ def main():
 
                 set_val(parent, key, new_val)
                 print(f"Set {path} to {new_val}")
+                modified = True
             except Exception as e:
                 print(f"Error setting {path}: {e}")
                 sys.exit(1)
 
+    if modified:
         output_path = args.output if args.output else args.input_file
         style_file.save(output_path)
-        print(f"Saved to {output_path}")
+        print(f"Saved modifications to {output_path}")
 
 if __name__ == '__main__':
     main()
