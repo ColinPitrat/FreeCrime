@@ -6,11 +6,12 @@ case $1 in
   *) echo "Invalid type $1, want 'G24' or 'GRY' or 'both'" ;;
 esac
 
-# Test the output of a command taking a single parameter (filename).
-test_command1_stdout() {
-  cmd=$1
-  file=$2
-  basefile=$(basename $2)
+# Test the output (stdout) of the info command.
+# Usage: test_info <input_file>
+test_info() {
+  cmd="info"
+  file=$1
+  basefile=$(basename ${file})
 
   echo " ⚙️ Testing ${cmd} ${file}"
 
@@ -25,13 +26,13 @@ test_command1_stdout() {
   fi
 }
 
-# Test the files produced in a given directory by a command taking a single parameter (filename).
-# Optional extra arguments can be passed as a third parameter to the function.
-test_command1_dir() {
-  cmd=$1
-  file=$2
-  extra_args="$3"
-  basefile=$(basename $2)
+# Test the output (directory) of the extract command.
+# Usage: test_extract <input_file> [<extra args>]
+test_extract() {
+  cmd="extract"
+  file=$1
+  extra_args="$2"
+  basefile=$(basename ${file})
 
   echo " ⚙️ Testing ${cmd} ${file} (extra args: ${extra_args})"
 
@@ -48,34 +49,60 @@ test_command1_dir() {
   fi
 }
 
+# Test the output (file) of the overview command.
+# Usage: test_overview <input_file>
+test_overview() {
+  cmd="overview"
+  file=$1
+  basefile=$(basename ${file})
+
+  echo " ⚙️ Testing ${cmd} ${file}"
+
+  gotfile=testdata/got_${cmd}_${basefile}.bmp
+  wantfile=testdata/want_${cmd}_${basefile}.bmp
+
+  cargo run --quiet -- ${cmd} ${file} -o ${gotfile}
+  if ! diff ${gotfile} ${wantfile}
+  then
+    echo "ERROR: ${gotfile} != ${wantfile}"
+    exit 1
+  fi
+}
+
 ########
 # info #
 ########
-test_command1_stdout info gamedata/gta-uk/UK.CMP
-test_command1_stdout info gamedata/gta-uk/MC.CMP
-test_command1_stdout info gamedata/gta/MIAMI.CMP
-test_command1_stdout info gamedata/gta/NYC.CMP
-test_command1_stdout info gamedata/gta/SANB.CMP
+test_info gamedata/gta-uk/UK.CMP
+test_info gamedata/gta-uk/MC.CMP
+test_info gamedata/gta/MIAMI.CMP
+test_info gamedata/gta/NYC.CMP
+test_info gamedata/gta/SANB.CMP
 
 ###########
 # extract #
 ###########
 
 # FON file
-test_command1_dir extract gamedata/gta/CUT00.FON
+test_extract gamedata/gta/CUT00.FON
 
 # SDT file (16 bits)
-test_command1_dir extract gamedata/gta/AUDIO/LEVEL000.SDT
+test_extract gamedata/gta/AUDIO/LEVEL000.SDT
 # SDT file (8 bits)
-test_command1_dir extract gamedata/gta/AUDIO/LEVEL001.SDT
+test_extract gamedata/gta/AUDIO/LEVEL001.SDT
 # GRY file (8 bits)
-test_command1_dir extract gamedata/gta/STYLE001.GRY "--cmp gamedata/gta/NYC.CMP"
+test_extract gamedata/gta/STYLE001.GRY "--cmp gamedata/gta/NYC.CMP"
 # G24 file (24 bits)
-test_command1_dir extract gamedata/gta/STYLE001.G24 "--cmp gamedata/gta/NYC.CMP"
+test_extract gamedata/gta/STYLE001.G24 "--cmp gamedata/gta/NYC.CMP"
 
 ###########
 # overview #
 ###########
+
+test_overview gamedata/gta/NYC.CMP
+test_overview gamedata/gta/SANB.CMP
+test_overview gamedata/gta/MIAMI.CMP
+test_overview gamedata/gta-uk/UK.CMP
+test_overview gamedata/gta-uk/MC.CMP
 
 ###########
 # display #
