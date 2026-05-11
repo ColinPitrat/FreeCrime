@@ -6,12 +6,13 @@ case $1 in
   *) echo "Invalid type $1, want 'G24' or 'GRY' or 'both'" ;;
 esac
 
-test_command1() {
+# Test the output of a command taking a single parameter (filename).
+test_command1_stdout() {
   cmd=$1
   file=$2
   basefile=$(basename $2)
 
-  echo " Testing ${cmd} ${file}"
+  echo " ⚙️ Testing ${cmd} ${file}"
 
   gotfile=testdata/got_${cmd}_${basefile}.txt
   wantfile=testdata/want_${cmd}_${basefile}.txt
@@ -24,18 +25,53 @@ test_command1() {
   fi
 }
 
+# Test the files produced in a given directory by a command taking a single parameter (filename).
+# Optional extra arguments can be passed as a third parameter to the function.
+test_command1_dir() {
+  cmd=$1
+  file=$2
+  extra_args="$3"
+  basefile=$(basename $2)
+
+  echo " ⚙️ Testing ${cmd} ${file} (extra args: ${extra_args})"
+
+  gotfile=testdata/got_${cmd}_${basefile}.txt
+  wantfile=testdata/want_${cmd}_${basefile}.txt
+  outdir=testdata/got_${cmd}_${basefile}
+
+  cargo run --quiet -- ${cmd} ${file} ${outdir} ${extra_args}
+  find ${outdir} -type f | xargs md5sum > ${gotfile}
+  if ! diff ${gotfile} ${wantfile}
+  then
+    echo "ERROR: ${gotfile} != ${wantfile}"
+    exit 1
+  fi
+}
+
 ########
 # info #
 ########
-test_command1 info gamedata/gta-uk/UK.CMP
-test_command1 info gamedata/gta-uk/MC.CMP
-test_command1 info gamedata/gta/MIAMI.CMP
-test_command1 info gamedata/gta/NYC.CMP
-test_command1 info gamedata/gta/SANB.CMP
+test_command1_stdout info gamedata/gta-uk/UK.CMP
+test_command1_stdout info gamedata/gta-uk/MC.CMP
+test_command1_stdout info gamedata/gta/MIAMI.CMP
+test_command1_stdout info gamedata/gta/NYC.CMP
+test_command1_stdout info gamedata/gta/SANB.CMP
 
 ###########
 # extract #
 ###########
+
+# FON file
+test_command1_dir extract gamedata/gta/CUT00.FON
+
+# SDT file (16 bits)
+test_command1_dir extract gamedata/gta/AUDIO/LEVEL000.SDT
+# SDT file (8 bits)
+test_command1_dir extract gamedata/gta/AUDIO/LEVEL001.SDT
+# GRY file (8 bits)
+test_command1_dir extract gamedata/gta/STYLE001.GRY "--cmp gamedata/gta/NYC.CMP"
+# G24 file (24 bits)
+test_command1_dir extract gamedata/gta/STYLE001.G24 "--cmp gamedata/gta/NYC.CMP"
 
 ###########
 # overview #
