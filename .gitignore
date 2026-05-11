@@ -2,3 +2,4 @@ gamedata/gta
 gamedata/gta2
 target/
 Cargo.lock
+testdata/got*
