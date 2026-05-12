@@ -51,9 +51,21 @@ impl Map {
     pub fn get_lid_flatness(&self) -> Vec<bool> {
         let mut flatness = vec![false; 256];
         for block in self.blocks.iter().flatten() {
-            if block.lid != 0 && block.is_flat() {
+            if block.lid == 0 {
+                continue
+            }
+            if block.is_flat() {
                 flatness[block.lid as usize] = true;
             }
+            // TODO: Dig into this. Some lids are used on both flats and non-flats blocks.
+            // This is fine as long as they don't use color 0. It would be nice to check that!
+            // But this requires a back and forth between CMP and GRY. Or passing more info from
+            // CMP to GRY.
+            /*
+            else if flatness[block.lid as usize] {
+                eprintln!("Warning: {block:?} is not flat but has lid {} which is used in a flat block (so lid should be transparent sometimes, and sometimes not!)", block.lid)
+            }
+            */
         }
         flatness
     }
