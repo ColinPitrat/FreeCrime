@@ -39,7 +39,13 @@ pub fn execute(file_path: &str, cmp_path: Option<&str>) -> anyhow::Result<()> {
             println!("  Max Tile Indices: side={}, lid={}", max_side, max_lid);
         }
         "GRY" | "G24" => {
-            let style = parsers::gry::parse_gry(&data)?;
+            let lid_flatness = if let Some(p) = cmp_path {
+                let cmp_data = fs::read(p)?;
+                let map = parsers::cmp::parse_cmp(&cmp_data)?;
+                Some(map.get_lid_flatness())
+            } else { None };
+
+            let style = parsers::gry::parse_gry(&data, lid_flatness.as_deref())?;
             println!("Style File ({}):", ext);
             println!("  Blocks: {} ({} side, {} lid, {} aux)",
                 style.blocks.len(), style.side_count, style.lid_count, style.aux_count);
@@ -47,6 +53,7 @@ pub fn execute(file_path: &str, cmp_path: Option<&str>) -> anyhow::Result<()> {
             println!("  Cars: {}", style.cars.len());
             println!("  Objects: {}", style.objects.len());
             println!("  Sprites: {}", style.sprites.len());
+            println!("  CLUTs: {}", style.cluts.len());
         }
         "FON" => {
             let font = parsers::fon::parse_fon(&data)?;

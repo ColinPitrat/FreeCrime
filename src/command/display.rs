@@ -18,7 +18,8 @@ pub fn execute(
     let style_data = fs::read(style_path)?;
 
     let map = parsers::cmp::parse_cmp(&map_data)?;
-    let style = parsers::gry::parse_gry(&style_data)?;
+    let lid_flatness = map.get_lid_flatness();
+    let style = parsers::gry::parse_gry(&style_data, Some(&lid_flatness))?;
 
     let pos = initial_pos_arr.map(Vec3::from_array).unwrap_or(Vec3::new(128.0, 150.0, 128.0));
     let rot = initial_rot_arr.map(|a| Quat::from_euler(
@@ -91,22 +92,19 @@ fn setup(
     // Direct mapping: Map Index 0 maps to Atlas Index 0
     let mut current_atlas_idx = 0;
 
-    let lid_flatness = map_data.map.get_lid_flatness();
-
     // Sides
     for face_idx in 0..map_data.style.side_count {
         if current_atlas_idx >= 1024 { break; }
-        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0, false);
+        let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Side, 0);
         copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
         current_atlas_idx += 1;
     }
 
     // Lids (4 remaps each)
     for face_idx in 0..map_data.style.lid_count {
-        let is_flat = lid_flatness.get(face_idx).cloned().unwrap_or(false);
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap, is_flat);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Lid, remap);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }
@@ -116,7 +114,7 @@ fn setup(
     for face_idx in 0..map_data.style.aux_count {
         for remap in 0..4 {
             if current_atlas_idx >= 1024 { break; }
-            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap, true);
+            let rgba = map_data.style.get_face_rgba(face_idx, FaceType::Aux, remap);
             copy_to_atlas(&mut data, atlas_size, current_atlas_idx, &rgba);
             current_atlas_idx += 1;
         }

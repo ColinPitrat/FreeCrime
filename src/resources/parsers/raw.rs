@@ -8,11 +8,12 @@ pub fn parse_act(data: &[u8]) -> Result<Palette> {
         return Err(Error::Parse(format!("ACT file too small: {} bytes", data.len())));
     }
 
-    let mut colors = [[0u8; 3]; 256];
+    let mut colors = [[0u8; 4]; 256];
     for i in 0..256 {
         colors[i][0] = data[i * 3];
         colors[i][1] = data[i * 3 + 1];
         colors[i][2] = data[i * 3 + 2];
+        colors[i][3] = 255;
     }
 
     if data.len() > 768 {
@@ -95,6 +96,7 @@ mod tests {
         let palette = parse_act(&data).unwrap();
         assert_eq!(palette.colors[0][0], 255);
         assert_eq!(palette.colors[255][2], 128);
+        assert_eq!(palette.colors[0][3], 255);
     }
 
     #[test]

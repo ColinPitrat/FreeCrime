@@ -23,13 +23,13 @@ pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::R
 
     match ext.as_str() {
         "GRY" | "G24" => {
-            let style = parsers::gry::parse_gry(&data)?;
+            let lid_flatness = if let Some(p) = cmp_path {
+                let cmp_data = fs::read(p)?;
+                let map = parsers::cmp::parse_cmp(&cmp_data)?;
+                Some(map.get_lid_flatness())
+            } else { None };
 
-            // Read CMP to get bit-perfect lid transparency (safe unwrap because of check above)
-            let cmp_data = fs::read(cmp_path.unwrap())?;
-            let map = parsers::cmp::parse_cmp(&cmp_data)?;
-            let lid_flatness = map.get_lid_flatness();
-
+            let style = parsers::gry::parse_gry(&data, lid_flatness.as_deref())?;
             fs::create_dir_all(out)?;
 
             // 1. Blocks
@@ -38,18 +38,17 @@ pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::R
             fs::create_dir_all(&blocks_dir)?;
 
             for i in 0..style.side_count {
-                let rgba = style.get_face_rgba(i, FaceType::Side, 0, false);
+                let rgba = style.get_face_rgba(i, FaceType::Side, 0);
                 save_png(&blocks_dir.join(format!("side_{:03}.png", i)), 64, 64, &rgba)?;
             }
             for i in 0..style.lid_count {
-                let is_flat = lid_flatness.get(i).cloned().unwrap_or(false);
                 for r in 0..4 {
-                    let rgba = style.get_face_rgba(i, FaceType::Lid, r, is_flat);
+                    let rgba = style.get_face_rgba(i, FaceType::Lid, r);
                     save_png(&blocks_dir.join(format!("lid_{:03}_remap_{}.png", i, r)), 64, 64, &rgba)?;
                 }
             }
             for i in 0..style.aux_count {
-                let rgba = style.get_face_rgba(i, FaceType::Aux, 0, true);
+                let rgba = style.get_face_rgba(i, FaceType::Aux, 0);
                 save_png(&blocks_dir.join(format!("aux_{:03}.png", i)), 64, 64, &rgba)?;
             }
 
@@ -68,12 +67,12 @@ pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::R
                     &style.palette
                 };
 
-                let rgba = IndexedImage::new(spr.width as u32, spr.height as u32, spr.pixels.clone()).to_rgba(palette, true);
+                let rgba = IndexedImage::new(spr.width as u32, spr.height as u32, spr.pixels.clone()).to_rgba(palette);
                 save_png(&sprites_dir.join(format!("sprite_{:04}.png", i)), spr.width as u32, spr.height as u32, &rgba)?;
 
                 for (j, _delta) in spr.deltas.iter().enumerate() {
                     let d_pixels = spr.apply_delta(j);
-                    let d_rgba = IndexedImage::new(spr.width as u32, spr.height as u32, d_pixels).to_rgba(palette, true);
+                    let d_rgba = IndexedImage::new(spr.width as u32, spr.height as u32, d_pixels).to_rgba(palette);
                     save_png(&sprites_dir.join(format!("sprite_{:04}_delta_{:03}.png", i, j)), spr.width as u32, spr.height as u32, &d_rgba)?;
                 }
 
@@ -111,14 +110,14 @@ pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::R
                                 if remap_val == 0 { continue; }
                                 let table = style.remap_tables.get(remap_val as usize).unwrap_or(&[0u8; 256]);
                                 // Build a remapped palette
-                                let mut colors = [[0u8; 3]; 256];
+                                let mut colors = [[0u8; 4]; 256];
                                 for i in 0..256 {
                                     colors[i] = style.palette.colors[table[i] as usize];
                                 }
                                 freecrime::resources::types::graphics::Palette { colors }
                             };
 
-                            let rgba = IndexedImage::new(spr.width as u32, spr.height as u32, spr.pixels.clone()).to_rgba(&remap_palette, true);
+                            let rgba = IndexedImage::new(spr.width as u32, spr.height as u32, spr.pixels.clone()).to_rgba(&remap_palette);
                             save_png(&car_remaps_dir.join(format!("car_{:03}_remap_{:02}.png", c, r_idx)), spr.width as u32, spr.height as u32, &rgba)?;
                         }
                     }
@@ -136,7 +135,7 @@ pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::R
             let font = parsers::fon::parse_fon(&data)?;
             fs::create_dir_all(out)?;
             for (i, glyph) in font.glyphs.iter().enumerate() {
-                let rgba = glyph.to_rgba(&font.palette, true);
+                let rgba = glyph.to_rgba(&font.palette);
                 save_png(&Path::new(out).join(format!("glyph_{:03}.png", i)), glyph.width, glyph.height, &rgba)?;
             }
             println!("Extracted {} glyphs to {}", font.glyphs.len(), out);
@@ -180,9 +179,7 @@ pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::R
                             writer.write_sample(s)?;
                         }
                     } else {
-                        // 8-bit WAV stores samples as unsigned (0 to 255).
-                        // Hound's write_sample(i8) expects signed (-128 to 127) and adds 128 when writing.
-                        // We subtract 128 here so that the final WAV contains the bit-perfect original data.
+                        // 8-bit samples are unsigned. Hound adds 128 to i8.
                         for &b in sample_bytes {
                             writer.write_sample(b.wrapping_sub(128) as i8)?;
                         }

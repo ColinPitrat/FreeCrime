@@ -24,9 +24,10 @@ pub struct Style {
     /// Mapping of Lid IDs to their remap table indices in GRY.
     pub remap_indices: Vec<[u8; 4]>,
 
-    /// List of all palettes (CLUTs) for 24-bit (G24/GTA2) styles.
+    /// List of all palettes (CLUTs).
     pub cluts: Vec<Palette>,
     /// Mapping of Global Block Indices to their specific CLUT indices.
+    /// Indices are stored as (Sides -> Lids -> Aux) with 4 slots each for remaps.
     pub palette_index: Vec<u16>,
     /// Number of tile-specific CLUTs.
     pub tile_cl_count: usize,
@@ -81,9 +82,8 @@ impl Style {
         }
     }
 
-    /// Gets the RGBA pixels for a block face, handling both GRY and G24 palette systems.
-    /// Transparency is determined by the `is_flat` parameter and the "Golden Rule" (index 0).
-    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize, is_flat: bool) -> Vec<u8> {
+    /// Gets the RGBA pixels for a block face.
+    pub fn get_face_rgba(&self, face_idx: usize, face_type: FaceType, remap: usize) -> Vec<u8> {
         let block_idx = match face_type {
             FaceType::Side => face_idx,
             FaceType::Lid => self.side_count + face_idx,
@@ -93,38 +93,20 @@ impl Style {
         if block_idx >= self.blocks.len() { return vec![0; 64 * 64 * 4]; }
         let block = &self.blocks[block_idx];
 
-        // Flatness Rule: Lids are only transparent if the block is marked as Flat.
-        // Sides (walls) and Aux (animations) always support index 0 transparency.
-        let transparent = match face_type {
-            FaceType::Side | FaceType::Aux => true,
-            FaceType::Lid => is_flat,
+        // Global palette indexing: (Sides -> Lids -> Aux) with 4 slots each.
+        // Sides usually use slot 0 (no remaps), Lids/Aux use slots 0-3.
+        let pal_idx_base = match face_type {
+            FaceType::Side => 4 * face_idx,
+            FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
+            FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count) + remap,
         };
 
-        if !self.cluts.is_empty() {
-            // G24 logic: Global Indexing (Sides -> Lids -> Aux)
-            let pal_idx_base = match face_type {
-                FaceType::Side => 4 * face_idx,
-                FaceType::Lid => 4 * (face_idx + self.side_count) + remap,
-                FaceType::Aux => 4 * (face_idx + self.side_count + self.lid_count) + remap,
-            };
+        let clut_idx = if pal_idx_base < self.palette_index.len() {
+            self.palette_index[pal_idx_base] as usize
+        } else { 0 };
 
-            let clut_idx = if pal_idx_base < self.palette_index.len() {
-                self.palette_index[pal_idx_base] as usize
-            } else { 0 };
-
-            let palette = self.cluts.get(clut_idx).unwrap_or(&self.palette);
-            block.to_rgba(palette, transparent)
-        } else {
-            // GRY logic: Local Indexing (Lids start at 0). Sides are usually not remapped.
-            let table_idx = match face_type {
-                FaceType::Side => 0,
-                FaceType::Lid => self.remap_indices.get(face_idx).map(|r| r[remap] as usize).unwrap_or(0),
-                FaceType::Aux => 0,
-            };
-
-            let table = self.remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
-            block.to_rgba_remapped(&self.palette, table, transparent)
-        }
+        let palette = self.cluts.get(clut_idx).unwrap_or(&self.palette);
+        block.to_rgba(palette)
     }
 
     /// Returns a map of category names to their starting sprite index in the Style.
@@ -376,7 +358,7 @@ mod tests {
             frames: vec![0, 1], // fc=2
         });
 
-        // Gta1 Lid: total_frames = fc + 1 = 3 ([Base, Aux 0, Aux 1])
+        // total_frames = fc + 1 = 3 ([Base, Aux 0, Aux 1])
         assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 0), 100 + 10 * 4);
         assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 5), 100 + 50 * 4 + 0 * 4);
         assert_eq!(style.get_animated_atlas_idx(10, 1, 0, 10), 100 + 50 * 4 + 1 * 4);

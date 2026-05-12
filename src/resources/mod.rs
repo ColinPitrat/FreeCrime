@@ -49,7 +49,8 @@ impl CityBundle {
         text_data: &[u8],
     ) -> Result<Self> {
         let map = parsers::cmp::parse_cmp(map_data)?;
-        let style = parsers::gry::parse_gry(style_data)?;
+        let lid_flatness = map.get_lid_flatness();
+        let style = parsers::gry::parse_gry(style_data, Some(&lid_flatness))?;
         let mission = parsers::ini::parse_mission(mission_data)?;
         let text = parsers::fxt::parse_fxt(text_data)?;
 

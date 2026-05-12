@@ -1,13 +1,13 @@
 /// Represents a 256-color palette used for indexed images.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Palette {
-    /// The RGB colors in the palette.
-    pub colors: [[u8; 3]; 256],
+    /// The RGBA colors in the palette.
+    pub colors: [[u8; 4]; 256],
 }
 
 impl Default for Palette {
     fn default() -> Self {
-        Self { colors: [[0u8; 3]; 256] }
+        Self { colors: [[0, 0, 0, 255]; 256] }
     }
 }
 
@@ -15,11 +15,12 @@ impl Palette {
     /// Applies Hue, Lightness, and Saturation offsets to the entire palette.
     /// Used for dynamic car color variations in GTA 2.
     pub fn apply_hls_offset(&self, h_off: i16, l_off: i16, s_off: i16) -> Self {
-        let mut new_colors = [[0u8; 3]; 256];
+        let mut new_colors = [[0u8; 4]; 256];
         for (i, new_color) in new_colors.iter_mut().enumerate() {
             let r = self.colors[i][0] as f32 / 255.0;
             let g = self.colors[i][1] as f32 / 255.0;
             let b = self.colors[i][2] as f32 / 255.0;
+            let a = self.colors[i][3];
 
             let (h, l, s) = rgb_to_hls(r, g, b);
 
@@ -32,6 +33,7 @@ impl Palette {
             new_color[0] = (nr * 255.0).round() as u8;
             new_color[1] = (ng * 255.0).round() as u8;
             new_color[2] = (nb * 255.0).round() as u8;
+            new_color[3] = a;
         }
         Self { colors: new_colors }
     }
@@ -89,38 +91,23 @@ impl IndexedImage {
     }
 
     /// Converts the indexed image to 32-bit RGBA pixels using the provided palette.
-    /// If `transparent` is true, index 0 is rendered with 0 alpha.
-    pub fn to_rgba(&self, palette: &Palette, transparent: bool) -> Vec<u8> {
+    pub fn to_rgba(&self, palette: &Palette) -> Vec<u8> {
         let mut rgba = Vec::with_capacity((self.width * self.height * 4) as usize);
         for &idx in &self.pixels {
-            if transparent && idx == 0 {
-                rgba.extend_from_slice(&[0, 0, 0, 0]);
-            } else {
-                let color = palette.colors[idx as usize];
-                rgba.push(color[0]);
-                rgba.push(color[1]);
-                rgba.push(color[2]);
-                rgba.push(255);
-            }
+            let color = palette.colors[idx as usize];
+            rgba.extend_from_slice(&color);
         }
         rgba
     }
 
     /// Converts the indexed image to 32-bit RGBA pixels using a remap table.
     /// Each pixel index is first passed through the remap table before palette lookup.
-    pub fn to_rgba_remapped(&self, palette: &Palette, remap_table: &[u8; 256], transparent: bool) -> Vec<u8> {
+    pub fn to_rgba_remapped(&self, palette: &Palette, remap_table: &[u8; 256]) -> Vec<u8> {
         let mut rgba = Vec::with_capacity((self.width * self.height * 4) as usize);
         for &idx in &self.pixels {
-            if transparent && idx == 0 {
-                rgba.extend_from_slice(&[0, 0, 0, 0]);
-            } else {
-                let remapped_idx = remap_table[idx as usize];
-                let color = palette.colors[remapped_idx as usize];
-                rgba.push(color[0]);
-                rgba.push(color[1]);
-                rgba.push(color[2]);
-                rgba.push(255);
-            }
+            let remapped_idx = remap_table[idx as usize];
+            let color = palette.colors[remapped_idx as usize];
+            rgba.extend_from_slice(&color);
         }
         rgba
     }
@@ -146,42 +133,40 @@ mod tests {
 
     #[test]
     fn test_palette_hls_offset() {
-        let mut colors = [[0u8; 3]; 256];
-        colors[1] = [255, 0, 0]; // Red
+        let mut colors = [[0, 0, 0, 255]; 256];
+        colors[1] = [255, 0, 0, 255]; // Red
         let pal = Palette { colors };
 
         // Offset lightness by +20%
         let pal2 = pal.apply_hls_offset(0, 20, 0);
-        // Lightness 0.5 -> 0.7. RGB should become roughly (255, 102, 102)
-        // q = 0.7 * (1 + 0.3) = 0.91? No, s is 1.0.
-        // q = 0.7 + 1.0 - 0.7*1.0 = 1.0. p = 2*0.7 - 1.0 = 0.4.
-        // Red at l=0.7: r=1.0, g=0.4, b=0.4 -> (255, 102, 102)
-        assert_eq!(pal2.colors[1], [255, 102, 102]);
+        assert_eq!(pal2.colors[1], [255, 102, 102, 255]);
     }
 
     #[test]
     fn test_to_rgba_transparency() {
-        let palette = Palette { colors: [[255, 0, 0]; 256] };
-        let img = IndexedImage::new(1, 1, vec![0]); // Index 0
-        let rgba = img.to_rgba(&palette, true);
-        assert_eq!(rgba, vec![0, 0, 0, 0]); // Transparent
+        let mut palette = Palette::default();
+        palette.colors[0] = [0, 0, 0, 0]; // Transparent index 0
+        palette.colors[1] = [255, 0, 0, 255]; // Opaque red index 1
 
-        let img2 = IndexedImage::new(1, 1, vec![1]); // Index 1
-        let rgba2 = img2.to_rgba(&palette, true);
-        assert_eq!(rgba2, vec![255, 0, 0, 255]); // Opaque
+        let img = IndexedImage::new(1, 1, vec![0]);
+        let rgba = img.to_rgba(&palette);
+        assert_eq!(rgba, vec![0, 0, 0, 0]);
+
+        let img2 = IndexedImage::new(1, 1, vec![1]);
+        let rgba2 = img2.to_rgba(&palette);
+        assert_eq!(rgba2, vec![255, 0, 0, 255]);
     }
 
     #[test]
     fn test_to_rgba_remapped() {
-        let mut colors = [[0u8; 3]; 256];
-        colors[1] = [0, 255, 0];
-        colors[2] = [0, 0, 255];
+        let mut colors = [[0, 0, 0, 255]; 256];
+        colors[1] = [0, 255, 0, 255];
+        colors[2] = [0, 0, 255, 255];
         let palette = Palette { colors };
         let mut remap = [0u8; 256];
-        remap[1] = 2; // Map index 1 to palette color 2 (Blue)
+        remap[1] = 2;
         let img = IndexedImage::new(1, 1, vec![1]);
-        let rgba = img.to_rgba_remapped(&palette, &remap, true);
+        let rgba = img.to_rgba_remapped(&palette, &remap);
         assert_eq!(rgba, vec![0, 0, 255, 255]);
     }
 }
-

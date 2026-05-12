@@ -73,14 +73,13 @@ struct SpriteNumbersRaw {
 
 /// Primary parser for GRY (GTA1) and G24 (GTA2) style files.
 /// These files contain all the graphical assets and metadata for a level.
-pub fn parse_gry(data: &[u8]) -> Result<Style> {
+/// If `lid_flatness` is provided, it is used to bake transparency into Lid palettes.
+pub fn parse_gry(data: &[u8], lid_flatness: Option<&[bool]>) -> Result<Style> {
     let mut cursor = Cursor::new(data);
     let header: Header = cursor.read_le()?;
     let is_g24 = header.is_g24();
 
     // 1. Block Data
-    // Blocks are stored interleaved in groups of 4.
-    // Each group is a 256x64 pixel stripe (64px high * 4 blocks wide).
     let total_block_size = header.side_size() + header.lid_size() + header.aux_size();
     let block_count = total_block_size / 4096;
     let rem = block_count % 4;
@@ -136,12 +135,12 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
             for _ in 0..frame_count {
                 let aux_idx: u8 = anim_cursor.read_le()?;
                 frames.push(aux_idx);
-                // Track which block (and type) triggered this aux block to inherit shading
                 aux_to_trigger.insert(aux_idx as usize, (block as usize, which));
             }
             animations.push(Animation { block, which, speed, frames });
         }
     }
+
     // 3. Palette / CLUT
     let mut cluts = Vec::new();
     let mut primary_palette = Palette::default();
@@ -157,13 +156,14 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         cluts = Vec::with_capacity(num_cluts);
         for pal in 0..num_cluts {
             let off = 65536 * (pal / 64) + 4 * (pal % 64);
-            let mut colors = [[0u8; 3]; 256];
+            let mut colors = [[0u8; 4]; 256];
             for (col, item) in colors.iter_mut().enumerate() {
                 let coff = col * 256 + off;
                 if coff + 2 < clut_data_raw.len() {
                     item[2] = clut_data_raw[coff];
                     item[1] = clut_data_raw[coff + 1];
                     item[0] = clut_data_raw[coff + 2];
+                    item[3] = 255;
                 }
             }
             cluts.push(Palette { colors });
@@ -174,12 +174,13 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
     } else {
         let mut palette_data = vec![0u8; header.palette_size() as usize];
         cursor.read_exact(&mut palette_data)?;
-        let mut colors = [[0u8; 3]; 256];
+        let mut colors = [[0u8; 4]; 256];
         for i in 0..256 {
             if i * 3 + 2 < palette_data.len() {
                 colors[i][0] = (palette_data[i * 3] << 2) | (palette_data[i * 3] >> 4);
                 colors[i][1] = (palette_data[i * 3 + 1] << 2) | (palette_data[i * 3 + 1] >> 4);
                 colors[i][2] = (palette_data[i * 3 + 2] << 2) | (palette_data[i * 3 + 2] >> 4);
+                colors[i][3] = 255;
             }
         }
         primary_palette = Palette { colors };
@@ -200,22 +201,112 @@ pub fn parse_gry(data: &[u8]) -> Result<Style> {
         remap_tables.push(table);
     }
 
-
     // 5. Remap Index (GRY) or Palette Index (G24)
     let mut remap_indices = Vec::new();
-    let mut palette_index = Vec::new();
+    let mut palette_index;
 
     if is_g24 {
         let count = header.remap_index_size() / 2;
-        palette_index = Vec::with_capacity(count as usize);
+        let mut temp_palette_index = Vec::with_capacity(count as usize);
         for _ in 0..count {
-            palette_index.push(cursor.read_le::<u16>()?);
+            temp_palette_index.push(cursor.read_le::<u16>()?);
         }
+
+        // Apply transparency heuristics to G24 CLUTs
+        let mut final_cluts = cluts.clone();
+        let mut final_palette_index = temp_palette_index.clone();
+
+        for face_idx in 0..side_count + lid_count + aux_count {
+            let face_type = if face_idx < side_count { FaceType::Side }
+            else if face_idx < side_count + lid_count { FaceType::Lid }
+            else { FaceType::Aux };
+
+            let local_idx = if face_type == FaceType::Side { face_idx }
+            else if face_type == FaceType::Lid { face_idx - side_count }
+            else { face_idx - side_count - lid_count };
+
+            let transparent = match face_type {
+                FaceType::Side | FaceType::Aux => true,
+                FaceType::Lid => lid_flatness.and_then(|m| m.get(local_idx).cloned()).unwrap_or(false),
+            };
+
+            if transparent {
+                for remap in 0..4 {
+                    let pi = 4 * face_idx + remap;
+                    if pi >= final_palette_index.len() { continue; }
+                    let clut_idx = final_palette_index[pi] as usize;
+                    if clut_idx < final_cluts.len() && final_cluts[clut_idx].colors[0][3] != 0 {
+                        // Duplicate and make transparent
+                        let mut new_pal = final_cluts[clut_idx].clone();
+                        new_pal.colors[0][3] = 0;
+                        final_palette_index[pi] = final_cluts.len() as u16;
+                        final_cluts.push(new_pal);
+                    }
+                }
+            }
+        }
+        cluts = final_cluts;
+        palette_index = final_palette_index;
+
     } else {
         for _ in 0..header.remap_index_size() / 4 {
             let mut idx = [0u8; 4];
             cursor.read_exact(&mut idx)?;
             remap_indices.push(idx);
+        }
+
+        // Bake GRY Style into unified CLUTs
+        cluts = Vec::new();
+        palette_index = vec![0u16; 4 * (side_count + lid_count + aux_count)];
+
+        let mut clut_cache = std::collections::HashMap::new();
+
+        for face_idx in 0..side_count + lid_count + aux_count {
+            let face_type = if face_idx < side_count { FaceType::Side }
+            else if face_idx < side_count + lid_count { FaceType::Lid }
+            else { FaceType::Aux };
+
+            let local_idx = if face_type == FaceType::Side { face_idx }
+            else if face_type == FaceType::Lid { face_idx - side_count }
+            else { face_idx - side_count - lid_count };
+
+            let transparent = match face_type {
+                FaceType::Side | FaceType::Aux => true,
+                FaceType::Lid => lid_flatness.and_then(|m| m.get(local_idx).cloned()).unwrap_or(false),
+            };
+
+            for remap in 0..4 {
+                let table_idx = match face_type {
+                    FaceType::Side => 0,
+                    FaceType::Lid => remap_indices.get(local_idx).map(|r| r[remap] as usize).unwrap_or(0),
+                    FaceType::Aux => {
+                        let trigger = aux_to_trigger.get(&local_idx).cloned();
+                        if let Some((idx, which)) = trigger {
+                             if which == 1 { // Lid
+                                 remap_indices.get(idx).map(|r| r[remap] as usize).unwrap_or(0)
+                             } else { 0 }
+                        } else { 0 }
+                    }
+                };
+
+                let cache_key = (table_idx, transparent);
+                let cl_idx = if let Some(&idx) = clut_cache.get(&cache_key) {
+                    idx
+                } else {
+                    let mut colors = [[0u8; 4]; 256];
+                    let table = remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
+                    for i in 0..256 {
+                        let remapped = table[i] as usize;
+                        colors[i] = primary_palette.colors[remapped];
+                        if transparent && i == 0 { colors[i][3] = 0; }
+                    }
+                    let idx = cluts.len() as u16;
+                    cluts.push(Palette { colors });
+                    clut_cache.insert(cache_key, idx);
+                    idx
+                };
+                palette_index[4 * face_idx + remap] = cl_idx;
+            }
         }
     }
 
@@ -401,7 +492,7 @@ mod tests {
         let mut data = Vec::new();
         data.extend_from_slice(&325u32.to_le_bytes()); // version
         for _ in 0..12 { data.extend_from_slice(&0u32.to_le_bytes()); } // 12 sizes
-        let style = parse_gry(&data).unwrap();
+        let style = parse_gry(&data, None).unwrap();
         assert_eq!(style.blocks.len(), 0);
     }
 
@@ -410,7 +501,7 @@ mod tests {
         let mut data = Vec::new();
         data.extend_from_slice(&336u32.to_le_bytes()); // version
         for _ in 0..15 { data.extend_from_slice(&0u32.to_le_bytes()); } // 15 sizes
-        let style = parse_gry(&data).unwrap();
+        let style = parse_gry(&data, None).unwrap();
         assert_eq!(style.blocks.len(), 0);
     }
 
@@ -425,8 +516,9 @@ mod tests {
         let mut palette = vec![0u8; 768];
         palette[0] = 63; // Max GTA1 color (6-bit)
         data.extend(palette);
-        let style = parse_gry(&data).unwrap();
+        let style = parse_gry(&data, None).unwrap();
         assert_eq!(style.palette.colors[0][0], 255); // Scaled to 8-bit
+        assert_eq!(style.palette.colors[0][3], 255); // Opaque
     }
 
     #[test]
@@ -438,13 +530,10 @@ mod tests {
 
         // Block data must be at least 4 blocks (padding)
         let mut block_bytes = vec![0u8; 4 * 4096];
-        // Set first pixel of block 0 (Row 0, Col 0)
-        // Offset = (row * 64 + y) * 256 + col * 64
-        // For row 0, y 0, col 0 -> 0
         block_bytes[0] = 42;
         data.extend(block_bytes);
 
-        let style = parse_gry(&data).unwrap();
+        let style = parse_gry(&data, None).unwrap();
         assert_eq!(style.blocks.len(), 1);
         assert_eq!(style.blocks[0].pixels[0], 42);
     }

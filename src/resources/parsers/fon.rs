@@ -34,11 +34,12 @@ pub fn parse_fon(data: &[u8]) -> Result<Font> {
     let mut palette_data = [0u8; 768];
     cursor.read_exact(&mut palette_data)?;
 
-    let mut colors = [[0u8; 3]; 256];
+    let mut colors = [[0u8; 4]; 256];
     for i in 0..256 {
         colors[i][0] = palette_data[i * 3];
         colors[i][1] = palette_data[i * 3 + 1];
         colors[i][2] = palette_data[i * 3 + 2];
+        colors[i][3] = if i == 0 { 0 } else { 255 };
     }
 
     if cursor.position() < data.len() as u64 {
@@ -69,5 +70,6 @@ mod tests {
         assert_eq!(font.glyphs[0].height, 8);
         assert_eq!(font.glyphs[1].width, 1);
         assert_eq!(font.palette.colors[0][0], 63);
+        assert_eq!(font.palette.colors[0][3], 0);
     }
 }
