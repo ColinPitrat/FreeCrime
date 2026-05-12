@@ -42,7 +42,7 @@ test_extract() {
   outdir=testdata/got_${cmd}_${basefile}
 
   cargo run --quiet -- ${cmd} ${file} ${outdir} ${extra_args} || exit 1
-  find ${outdir} -type f | xargs md5sum | sort > ${gotfile}
+  find ${outdir} -type f | xargs md5sum | sort -k 2 > ${gotfile}
   if ! diff ${gotfile} ${wantfile}
   then
     echo "ERROR: ${gotfile} != ${wantfile}"
