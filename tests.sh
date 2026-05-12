@@ -77,6 +77,12 @@ test_info gamedata/gta-uk/MC.CMP
 test_info gamedata/gta/MIAMI.CMP
 test_info gamedata/gta/NYC.CMP
 test_info gamedata/gta/SANB.CMP
+test_info gamedata/gta/CUT00.FON
+test_info gamedata/gta/AUDIO/LEVEL000.SDT
+test_info gamedata/gta/STYLE001.GRY
+test_info gamedata/gta/STYLE001.G24
+test_info gamedata/gta/FRENCH.FXT
+test_info gamedata/gta/MISSION.INI
 
 ###########
 # extract #
@@ -90,8 +96,12 @@ test_extract gamedata/gta/AUDIO/LEVEL000.SDT
 # SDT file (8 bits)
 test_extract gamedata/gta/AUDIO/LEVEL001.SDT
 # GRY file (8 bits)
+# TODO: At this point, the sprites are likely wrong. To be adjusted once this is
+# fixed.
 test_extract gamedata/gta/STYLE001.GRY "--cmp gamedata/gta/NYC.CMP"
 # G24 file (24 bits)
+# TODO: At this point, the sprites are likely wrong. To be adjusted once this is
+# fixed.
 test_extract gamedata/gta/STYLE001.G24 "--cmp gamedata/gta/NYC.CMP"
 
 ###########
