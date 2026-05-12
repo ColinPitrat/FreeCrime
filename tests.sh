@@ -11,14 +11,15 @@ esac
 test_info() {
   cmd="info"
   file=$1
+  extra_args="$2"
   basefile=$(basename ${file})
 
-  echo " ⚙️ Testing ${cmd} ${file}"
+  echo " ⚙️ Testing ${cmd} ${file} (extra args: ${extra_args})"
 
   gotfile=testdata/got_${cmd}_${basefile}.txt
   wantfile=testdata/want_${cmd}_${basefile}.txt
 
-  cargo run --quiet -- ${cmd} ${file} > ${gotfile}
+  cargo run --quiet -- ${cmd} ${file} ${extra_args} > ${gotfile} || exit 1
   if ! diff ${gotfile} ${wantfile}
   then
     echo "ERROR: ${gotfile} != ${wantfile}"
@@ -40,7 +41,7 @@ test_extract() {
   wantfile=testdata/want_${cmd}_${basefile}.txt
   outdir=testdata/got_${cmd}_${basefile}
 
-  cargo run --quiet -- ${cmd} ${file} ${outdir} ${extra_args}
+  cargo run --quiet -- ${cmd} ${file} ${outdir} ${extra_args} || exit 1
   find ${outdir} -type f | xargs md5sum | sort > ${gotfile}
   if ! diff ${gotfile} ${wantfile}
   then
@@ -61,7 +62,7 @@ test_overview() {
   gotfile=testdata/got_${cmd}_${basefile}.bmp
   wantfile=testdata/want_${cmd}_${basefile}.bmp
 
-  cargo run --quiet -- ${cmd} ${file} -o ${gotfile}
+  cargo run --quiet -- ${cmd} ${file} -o ${gotfile} || exit 1
   if ! diff ${gotfile} ${wantfile}
   then
     echo "ERROR: ${gotfile} != ${wantfile}"
@@ -79,8 +80,8 @@ test_info gamedata/gta/NYC.CMP
 test_info gamedata/gta/SANB.CMP
 test_info gamedata/gta/CUT00.FON
 test_info gamedata/gta/AUDIO/LEVEL000.SDT
-test_info gamedata/gta/STYLE001.GRY
-test_info gamedata/gta/STYLE001.G24
+test_info gamedata/gta/STYLE001.GRY "--cmp gamedata/gta/NYC.CMP"
+test_info gamedata/gta/STYLE001.G24 "--cmp gamedata/gta/NYC.CMP"
 test_info gamedata/gta/FRENCH.FXT
 test_info gamedata/gta/MISSION.INI
 
