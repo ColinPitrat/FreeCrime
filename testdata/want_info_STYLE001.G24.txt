@@ -1,0 +1,7 @@
+Style File (G24):
+  Blocks: 386 (195 side, 154 lid, 37 aux)
+  Animations: 5
+  Cars: 38
+  Objects: 102
+  Sprites: 1034
+  CLUTs: 2100

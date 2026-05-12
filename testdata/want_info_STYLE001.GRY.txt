@@ -1,0 +1,7 @@
+Style File (GRY):
+  Blocks: 380 (195 side, 154 lid, 31 aux)
+  Animations: 5
+  Cars: 38
+  Objects: 102
+  Sprites: 1009
+  CLUTs: 14
