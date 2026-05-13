@@ -4,4 +4,4 @@ Style File (GRY):
   Cars: 38
   Objects: 102
   Sprites: 1009
-  CLUTs: 14
+  CLUTs: 15

@@ -4,4 +4,4 @@ Style File (G24):
   Cars: 38
   Objects: 102
   Sprites: 1034
-  CLUTs: 2100
+  CLUTs: 2205

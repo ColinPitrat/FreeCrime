@@ -18,8 +18,8 @@ pub fn execute(
     let style_data = fs::read(style_path)?;
 
     let map = parsers::cmp::parse_cmp(&map_data)?;
-    let lid_flatness = map.get_lid_flatness();
-    let style = parsers::gry::parse_gry(&style_data, Some(&lid_flatness))?;
+    let (lids, sides) = map.get_flat_block_tile_usage();
+    let style = parsers::gry::parse_gry(&style_data, Some((&lids, &sides)))?;
 
     let pos = initial_pos_arr.map(Vec3::from_array).unwrap_or(Vec3::new(128.0, 150.0, 128.0));
     let rot = initial_rot_arr.map(|a| Quat::from_euler(

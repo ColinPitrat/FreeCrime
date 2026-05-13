@@ -13,7 +13,7 @@ impl Default for Palette {
 
 impl Palette {
     /// Applies Hue, Lightness, and Saturation offsets to the entire palette.
-    /// Used for dynamic car color variations in GTA 2.
+    /// Used for dynamic car color variations in G24.
     pub fn apply_hls_offset(&self, h_off: i16, l_off: i16, s_off: i16) -> Self {
         let mut new_colors = [[0u8; 4]; 256];
         for (i, new_color) in new_colors.iter_mut().enumerate() {
@@ -24,7 +24,7 @@ impl Palette {
 
             let (h, l, s) = rgb_to_hls(r, g, b);
 
-            // GTA2 logic: Hue in degrees (0-360), Lightness/Saturation in percentage.
+            // G24 logic: Hue in degrees (0-360), Lightness/Saturation in percentage.
             let nh = (h + h_off as f32 / 360.0).rem_euclid(1.0);
             let nl = (l + l_off as f32 / 100.0).clamp(0.0, 1.0);
             let ns = (s + s_off as f32 / 100.0).clamp(0.0, 1.0);

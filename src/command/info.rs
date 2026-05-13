@@ -39,13 +39,16 @@ pub fn execute(file_path: &str, cmp_path: Option<&str>) -> anyhow::Result<()> {
             println!("  Max Tile Indices: side={}, lid={}", max_side, max_lid);
         }
         "GRY" | "G24" => {
-            let lid_flatness = if let Some(p) = cmp_path {
+            let (lids, sides) = if let Some(p) = cmp_path {
                 let cmp_data = fs::read(p)?;
                 let map = parsers::cmp::parse_cmp(&cmp_data)?;
-                Some(map.get_lid_flatness())
-            } else { None };
+                map.get_flat_block_tile_usage()
+            } else {
+                (vec![false; 2048], vec![false; 2048])
+            };
 
-            let style = parsers::gry::parse_gry(&data, lid_flatness.as_deref())?;
+            let style = parsers::gry::parse_gry(&data, Some((&lids, &sides)))?;
+
             println!("Style File ({}):", ext);
             println!("  Blocks: {} ({} side, {} lid, {} aux)",
                 style.blocks.len(), style.side_count, style.lid_count, style.aux_count);
@@ -53,6 +56,8 @@ pub fn execute(file_path: &str, cmp_path: Option<&str>) -> anyhow::Result<()> {
             println!("  Cars: {}", style.cars.len());
             println!("  Objects: {}", style.objects.len());
             println!("  Sprites: {}", style.sprites.len());
+            // TODO: CLUTs is not really a property of the file now that we rework them (due to
+            // transparency)!
             println!("  CLUTs: {}", style.cluts.len());
         }
         "FON" => {

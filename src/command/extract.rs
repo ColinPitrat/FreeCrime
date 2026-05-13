@@ -23,13 +23,16 @@ pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::R
 
     match ext.as_str() {
         "GRY" | "G24" => {
-            let lid_flatness = if let Some(p) = cmp_path {
+            let (lids, sides) = if let Some(p) = cmp_path {
                 let cmp_data = fs::read(p)?;
                 let map = parsers::cmp::parse_cmp(&cmp_data)?;
-                Some(map.get_lid_flatness())
-            } else { None };
+                map.get_flat_block_tile_usage()
+            } else {
+                (vec![false; 2048], vec![false; 2048])
+            };
 
-            let style = parsers::gry::parse_gry(&data, lid_flatness.as_deref())?;
+            let style = parsers::gry::parse_gry(&data, Some((&lids, &sides)))?;
+
             fs::create_dir_all(out)?;
 
             // 1. Blocks
@@ -101,18 +104,23 @@ pub fn execute(style_path: &str, out: &str, cmp_path: Option<&str>) -> anyhow::R
                         };
 
                         for r_idx in 0..12 {
-                            let remap_palette = if !style.cluts.is_empty() {
+                            let remap_palette = if style.remap_indices.is_empty() {
+                                // G24 (24 bits) uses HLS offsets
                                 let offsets = car.remap24[r_idx];
                                 if offsets == [0, 0, 0] { continue; }
                                 base_palette.apply_hls_offset(offsets[0], offsets[1], offsets[2])
                             } else {
+                                // GRY (8 bits) uses remap tables
                                 let remap_val = car.remap8[r_idx];
                                 if remap_val == 0 { continue; }
                                 let table = style.remap_tables.get(remap_val as usize).unwrap_or(&[0u8; 256]);
                                 // Build a remapped palette
                                 let mut colors = [[0u8; 4]; 256];
                                 for i in 0..256 {
-                                    colors[i] = style.palette.colors[table[i] as usize];
+                                    let remapped = table[i] as usize;
+                                    colors[i] = style.palette.colors[remapped];
+                                    // Preserve transparency for index 0 if base palette has it
+                                    if i == 0 && base_palette.colors[0][3] == 0 { colors[i][3] = 0; }
                                 }
                                 freecrime::resources::types::graphics::Palette { colors }
                             };

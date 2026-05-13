@@ -46,28 +46,22 @@ impl Map {
         }
     }
 
-    /// Scans the entire map to identify which Lid IDs are used in blocks marked as "Flat".
-    /// This is used by the transparency logic to determine if a Lid should be transparent.
-    pub fn get_lid_flatness(&self) -> Vec<bool> {
-        let mut flatness = vec![false; 256];
+    /// Scans the entire map to identify which Lid and Side IDs are used in blocks marked as "Flat".
+    /// This is used by the transparency logic for GTA1 resources.
+    /// Returns (lids, sides) usage maps.
+    pub fn get_flat_block_tile_usage(&self) -> (Vec<bool>, Vec<bool>) {
+        let mut lids = vec![false; 2048];
+        let mut sides = vec![false; 2048];
         for block in self.blocks.iter().flatten() {
-            if block.lid == 0 {
-                continue
-            }
             if block.is_flat() {
-                flatness[block.lid as usize] = true;
+                if block.lid != 0 { lids[block.lid as usize] = true; }
+                if block.left != 0 { sides[block.left as usize] = true; }
+                if block.right != 0 { sides[block.right as usize] = true; }
+                if block.top != 0 { sides[block.top as usize] = true; }
+                if block.bottom != 0 { sides[block.bottom as usize] = true; }
             }
-            // TODO: Dig into this. Some lids are used on both flats and non-flats blocks.
-            // This is fine as long as they don't use color 0. It would be nice to check that!
-            // But this requires a back and forth between CMP and GRY. Or passing more info from
-            // CMP to GRY.
-            /*
-            else if flatness[block.lid as usize] {
-                eprintln!("Warning: {block:?} is not flat but has lid {} which is used in a flat block (so lid should be transparent sometimes, and sometimes not!)", block.lid)
-            }
-            */
         }
-        flatness
+        (lids, sides)
     }
 }
 
@@ -223,15 +217,18 @@ mod tests {
     }
 
     #[test]
-    fn test_lid_flatness() {
+    fn test_flat_block_tile_usage() {
         let mut map = Map::new(1, 1, 1);
         let mut b = Block::default();
         b.lid = 10;
+        b.left = 20;
         b.type_map = 0x80; // Flat
         map.set_block(0, 0, 0, b);
 
-        let flatness = map.get_lid_flatness();
-        assert!(flatness[10]);
-        assert!(!flatness[11]);
+        let (lids, sides) = map.get_flat_block_tile_usage();
+        assert!(lids[10]);
+        assert!(sides[20]);
+        assert!(!lids[11]);
+        assert!(!sides[21]);
     }
 }

@@ -71,10 +71,10 @@ struct SpriteNumbersRaw {
     ex: u16, tumcar: u16, tumtruck: u16, ferry: u16,
 }
 
-/// Primary parser for GRY (GTA1) and G24 (GTA2) style files.
+/// Primary parser for GRY (8 bits) and G24 (24 bits) style files.
 /// These files contain all the graphical assets and metadata for a level.
-/// If `lid_flatness` is provided, it is used to bake transparency into Lid palettes.
-pub fn parse_gry(data: &[u8], lid_flatness: Option<&[bool]>) -> Result<Style> {
+/// If `flat_block_usage` is provided, it is used to bake transparency into tile palettes.
+pub fn parse_gry(data: &[u8], flat_block_usage: Option<(&[bool], &[bool])>) -> Result<Style> {
     let mut cursor = Cursor::new(data);
     let header: Header = cursor.read_le()?;
     let is_g24 = header.is_g24();
@@ -202,113 +202,8 @@ pub fn parse_gry(data: &[u8], lid_flatness: Option<&[bool]>) -> Result<Style> {
     }
 
     // 5. Remap Index (GRY) or Palette Index (G24)
-    let mut remap_indices = Vec::new();
-    let mut palette_index;
-
-    if is_g24 {
-        let count = header.remap_index_size() / 2;
-        let mut temp_palette_index = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            temp_palette_index.push(cursor.read_le::<u16>()?);
-        }
-
-        // Apply transparency heuristics to G24 CLUTs
-        let mut final_cluts = cluts.clone();
-        let mut final_palette_index = temp_palette_index.clone();
-
-        for face_idx in 0..side_count + lid_count + aux_count {
-            let face_type = if face_idx < side_count { FaceType::Side }
-            else if face_idx < side_count + lid_count { FaceType::Lid }
-            else { FaceType::Aux };
-
-            let local_idx = if face_type == FaceType::Side { face_idx }
-            else if face_type == FaceType::Lid { face_idx - side_count }
-            else { face_idx - side_count - lid_count };
-
-            let transparent = match face_type {
-                FaceType::Side | FaceType::Aux => true,
-                FaceType::Lid => lid_flatness.and_then(|m| m.get(local_idx).cloned()).unwrap_or(false),
-            };
-
-            if transparent {
-                for remap in 0..4 {
-                    let pi = 4 * face_idx + remap;
-                    if pi >= final_palette_index.len() { continue; }
-                    let clut_idx = final_palette_index[pi] as usize;
-                    if clut_idx < final_cluts.len() && final_cluts[clut_idx].colors[0][3] != 0 {
-                        // Duplicate and make transparent
-                        let mut new_pal = final_cluts[clut_idx].clone();
-                        new_pal.colors[0][3] = 0;
-                        final_palette_index[pi] = final_cluts.len() as u16;
-                        final_cluts.push(new_pal);
-                    }
-                }
-            }
-        }
-        cluts = final_cluts;
-        palette_index = final_palette_index;
-
-    } else {
-        for _ in 0..header.remap_index_size() / 4 {
-            let mut idx = [0u8; 4];
-            cursor.read_exact(&mut idx)?;
-            remap_indices.push(idx);
-        }
-
-        // Bake GRY Style into unified CLUTs
-        cluts = Vec::new();
-        palette_index = vec![0u16; 4 * (side_count + lid_count + aux_count)];
-
-        let mut clut_cache = std::collections::HashMap::new();
-
-        for face_idx in 0..side_count + lid_count + aux_count {
-            let face_type = if face_idx < side_count { FaceType::Side }
-            else if face_idx < side_count + lid_count { FaceType::Lid }
-            else { FaceType::Aux };
-
-            let local_idx = if face_type == FaceType::Side { face_idx }
-            else if face_type == FaceType::Lid { face_idx - side_count }
-            else { face_idx - side_count - lid_count };
-
-            let transparent = match face_type {
-                FaceType::Side | FaceType::Aux => true,
-                FaceType::Lid => lid_flatness.and_then(|m| m.get(local_idx).cloned()).unwrap_or(false),
-            };
-
-            for remap in 0..4 {
-                let table_idx = match face_type {
-                    FaceType::Side => 0,
-                    FaceType::Lid => remap_indices.get(local_idx).map(|r| r[remap] as usize).unwrap_or(0),
-                    FaceType::Aux => {
-                        let trigger = aux_to_trigger.get(&local_idx).cloned();
-                        if let Some((idx, which)) = trigger {
-                             if which == 1 { // Lid
-                                 remap_indices.get(idx).map(|r| r[remap] as usize).unwrap_or(0)
-                             } else { 0 }
-                        } else { 0 }
-                    }
-                };
-
-                let cache_key = (table_idx, transparent);
-                let cl_idx = if let Some(&idx) = clut_cache.get(&cache_key) {
-                    idx
-                } else {
-                    let mut colors = [[0u8; 4]; 256];
-                    let table = remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
-                    for i in 0..256 {
-                        let remapped = table[i] as usize;
-                        colors[i] = primary_palette.colors[remapped];
-                        if transparent && i == 0 { colors[i][3] = 0; }
-                    }
-                    let idx = cluts.len() as u16;
-                    cluts.push(Palette { colors });
-                    clut_cache.insert(cache_key, idx);
-                    idx
-                };
-                palette_index[4 * face_idx + remap] = cl_idx;
-            }
-        }
-    }
+    let remap_index_pos = cursor.position();
+    cursor.seek(SeekFrom::Current(header.remap_index_size() as i64))?;
 
     // 6. Object Info
     let mut objects = Vec::new();
@@ -463,16 +358,156 @@ pub fn parse_gry(data: &[u8], lid_flatness: Option<&[bool]>) -> Result<Style> {
         };
     }
 
-    if cursor.position() < data.len() as u64 {
-         return Err(Error::Parse(format!("GRY file has {} trailing bytes", data.len() as u64 - cursor.position())));
+    let end_of_sections_pos = cursor.position();
+
+    // Now finalize transparency baking using all collected info
+    let lid_flatness = flat_block_usage.map(|(l, _)| l);
+    let side_flatness = flat_block_usage.map(|(_, s)| s);
+
+    let mut remap_indices = Vec::new();
+    let mut palette_index;
+    let mut final_cluts;
+
+    cursor.set_position(remap_index_pos);
+
+    if is_g24 {
+        let count = header.remap_index_size() / 2;
+        palette_index = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            palette_index.push(cursor.read_le::<u16>()?);
+        }
+
+        final_cluts = cluts.clone();
+
+        // 1. Bake Tiles
+        for face_idx in 0..side_count + lid_count + aux_count {
+            let face_type = if face_idx < side_count { FaceType::Side }
+            else if face_idx < side_count + lid_count { FaceType::Lid }
+            else { FaceType::Aux };
+
+            let local_idx = if face_type == FaceType::Side { face_idx }
+            else if face_type == FaceType::Lid { face_idx - side_count }
+            else { face_idx - side_count - lid_count };
+
+            let transparent = match face_type {
+                FaceType::Side => side_flatness.and_then(|m| m.get(local_idx).cloned()).unwrap_or(false),
+                FaceType::Lid => lid_flatness.and_then(|m| m.get(local_idx).cloned()).unwrap_or(false),
+                FaceType::Aux => true,
+            };
+
+            if transparent {
+                for remap in 0..4 {
+                    let pi = 4 * face_idx + remap;
+                    if pi >= palette_index.len() { continue; }
+                    let clut_idx = palette_index[pi] as usize;
+                    if clut_idx < final_cluts.len() && final_cluts[clut_idx].colors[0][3] != 0 {
+                        let mut new_pal = final_cluts[clut_idx].clone();
+                        new_pal.colors[0][3] = 0;
+                        palette_index[pi] = final_cluts.len() as u16;
+                        final_cluts.push(new_pal);
+                    }
+                }
+            }
+        }
+
+        // 2. Bake Sprites (They always want transparency)
+        let tile_entries = header.tileclut_size() as usize / 1024;
+        for pi in palette_index.iter_mut().skip(tile_entries) {
+            let clut_idx = *pi as usize;
+            if clut_idx < final_cluts.len() && final_cluts[clut_idx].colors[0][3] != 0 {
+                let mut new_pal = final_cluts[clut_idx].clone();
+                new_pal.colors[0][3] = 0;
+                *pi = final_cluts.len() as u16;
+                final_cluts.push(new_pal);
+            }
+        }
+
+    } else {
+        // GRY (8-bit)
+        for _ in 0..header.remap_index_size() / 4 {
+            let mut idx = [0u8; 4];
+            cursor.read_exact(&mut idx)?;
+            remap_indices.push(idx);
+        }
+
+        final_cluts = Vec::new();
+        let tile_entries = 4 * (side_count + lid_count + aux_count);
+        // Total entries: tiles (4 per face) + sprites (1 per sprite)
+        palette_index = vec![0u16; tile_entries + sprites.len()];
+
+        let mut clut_cache = std::collections::HashMap::new();
+
+        // 1. Bake Tiles
+        for face_idx in 0..side_count + lid_count + aux_count {
+            let face_type = if face_idx < side_count { FaceType::Side }
+            else if face_idx < side_count + lid_count { FaceType::Lid }
+            else { FaceType::Aux };
+
+            let local_idx = if face_type == FaceType::Side { face_idx }
+            else if face_type == FaceType::Lid { face_idx - side_count }
+            else { face_idx - side_count - lid_count };
+
+            let transparent = match face_type {
+                FaceType::Side => side_flatness.and_then(|m| m.get(local_idx).cloned()).unwrap_or(false),
+                FaceType::Lid => lid_flatness.and_then(|m| m.get(local_idx).cloned()).unwrap_or(false),
+                FaceType::Aux => true,
+            };
+
+            for remap in 0..4 {
+                let table_idx = match face_type {
+                    FaceType::Side => 0,
+                    FaceType::Lid => remap_indices.get(local_idx).map(|r| r[remap] as usize).unwrap_or(0),
+                    FaceType::Aux => {
+                        let trigger = aux_to_trigger.get(&local_idx).cloned();
+                        if let Some((idx, which)) = trigger {
+                             if which == 1 { // Lid
+                                 remap_indices.get(idx).map(|r| r[remap] as usize).unwrap_or(0)
+                             } else { 0 }
+                        } else { 0 }
+                    }
+                };
+
+                let cache_key = (table_idx, transparent);
+                let cl_idx = if let Some(&idx) = clut_cache.get(&cache_key) {
+                    idx
+                } else {
+                    let mut colors = [[0u8; 4]; 256];
+                    let table = remap_tables.get(table_idx).unwrap_or(&[0u8; 256]);
+                    for i in 0..256 {
+                        let remapped = table[i] as usize;
+                        colors[i] = primary_palette.colors[remapped];
+                        if transparent && i == 0 { colors[i][3] = 0; }
+                    }
+                    let idx = final_cluts.len() as u16;
+                    final_cluts.push(Palette { colors });
+                    clut_cache.insert(cache_key, idx);
+                    idx
+                };
+                palette_index[4 * face_idx + remap] = cl_idx;
+            }
+        }
+
+        // 2. Bake Sprites (They use primary palette directly, with transparency)
+        let mut sprite_pal = primary_palette.clone();
+        sprite_pal.colors[0][3] = 0;
+        let sprite_cl_idx = final_cluts.len() as u16;
+        final_cluts.push(sprite_pal);
+
+        for pi in palette_index.iter_mut().skip(tile_entries) {
+            *pi = sprite_cl_idx;
+        }
+    }
+
+    if end_of_sections_pos < data.len() as u64 {
+         return Err(Error::Parse(format!("GRY file has {} trailing bytes", data.len() as u64 - end_of_sections_pos)));
     }
 
     Ok(Style {
         blocks, side_count, lid_count, aux_count, animations,
         palette: primary_palette, remap_tables, remap_indices,
-        cluts, palette_index,
-        tile_cl_count: if is_g24 { (header.tileclut_size() / 1024) as usize } else { 0 },
-        sprite_cl_count: if is_g24 { (header.spriteclut_size() / 1024) as usize } else { 0 },
+        cluts: final_cluts, palette_index,
+        tile_cl_count: if is_g24 { header.tileclut_size() as usize / 1024 } else { 4 * (side_count + lid_count + aux_count) },
+        sprite_cl_count: if is_g24 { header.spriteclut_size() as usize / 1024 } else { sprites.len() },
         objects, cars, sprites, sprite_numbers, aux_to_trigger
     })
 }
